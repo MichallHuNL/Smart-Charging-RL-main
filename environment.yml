@@ -1,0 +1,14 @@
+name: smart_charging
+channels:
+  - anaconda
+  - conda-forge
+dependencies:
+  - python=3.10.14
+  - anaconda::ipywidgets
+  - conda-forge::rich
+  - conda-forge::tqdm
+  - conda-forge::tensorboard
+  - conda-forge::gymnasium
+  - conda-forge::stable-baselines3
+  - conda-forge::matplotlib
+  - anaconda::numpy
