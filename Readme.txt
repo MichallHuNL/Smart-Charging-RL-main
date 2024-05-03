@@ -15,3 +15,6 @@ Install before running the code:
 Install anaconda
 Navigate to the environment.yml file
 Afterwards run the following command for installing the environment conda env create -f environment.yml
+The name for the created environment is called smart_charging and can be activated using: 
+- activate smart_charging (Windows)
+- source activate smart_charging (Mac/Linux)
