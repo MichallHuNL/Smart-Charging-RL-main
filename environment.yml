@@ -12,3 +12,5 @@ dependencies:
   - conda-forge::stable-baselines3
   - conda-forge::matplotlib
   - anaconda::numpy
+  - anaconda::scipy
+  - conda-forge::pulp
