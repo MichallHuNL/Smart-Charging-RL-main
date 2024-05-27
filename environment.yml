@@ -14,3 +14,5 @@ dependencies:
   - anaconda::numpy
   - anaconda::scipy
   - conda-forge::pulp
+  - conda-forge::statsmodels
+  - anaconda::openpyxl
