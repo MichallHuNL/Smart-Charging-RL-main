@@ -12,7 +12,7 @@ class MultiController:
         self.models = models
 
     def parameters(self):
-        return self.model.parameters()
+        return [model.parameters() for model in self.models]
 
     def sanitize_inputs(self, observations):
         if isinstance(observations, np.ndarray) or isinstance(observations, list):
