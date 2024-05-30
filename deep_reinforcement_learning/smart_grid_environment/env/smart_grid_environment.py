@@ -49,6 +49,8 @@ class SmartChargingEnv(ParallelEnv):
             ) for agent in self.possible_agents
         }
 
+        self._elapsed_steps = 0
+
         self.state = {}
 
     def reset(self, seed=None, options=None):
@@ -86,15 +88,17 @@ class SmartChargingEnv(ParallelEnv):
         total_reward = 0
         total_cost = 0
 
+        self._elapsed_steps += 1
+
         for agent, action in actions.items():
             soc, remaining_time, price, has_ev = self.state[agent]
             if has_ev == 1:
                 # Apply action to SoC
-                soc += action[0] * self.P_MAX  # Charging or discharging action
+                soc += action[0].item() * self.P_MAX  # Charging or discharging action
                 soc = np.clip(soc, 0, self.max_soc)
 
                 # Calculate reward
-                cost = price * abs(action[0])
+                cost = price * abs(action[0].item())
                 total_cost += cost
                 reward = -cost
 

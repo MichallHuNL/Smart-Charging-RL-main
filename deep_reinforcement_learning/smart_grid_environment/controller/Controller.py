@@ -7,7 +7,7 @@ import numpy as np
 class MultiController:
     def __init__(self, models, num_actions=None, params={}):
         self.lock = threading.Lock()
-        self.num_agents = params.get('num_agents', 1)
+        self.num_agents = params.get('n_agents', 4)
         self.num_actions = models[0][-1].out_features if num_actions is None else num_actions
         self.models = models
 
@@ -50,15 +50,50 @@ class LogitsController(MultiController):
 
     def probabilities(self, observations, precomputed=None, **kwargs):
         self.lock.acquire()
-        probabilities = []
-        for i in range(self.num_agents):
-            try:
-                mx = observations[i] if precomputed and precomputed[i] else self.models[i](
-                    self.sanitize_inputs(observations[i]))
-                probabilities.append(th.nn.functional.softmax(mx, dim=-1))
-            finally:
-                self.lock.release()
+        try:
+            probabilities = th.zeros((4, 2))
+            for i in range(self.num_agents):
+                port = f'port_{i}'
+                mx = observations[port] if precomputed and precomputed[i] else self.models[i](
+                    self.sanitize_inputs(observations[port]))
+                probabilities[i] = th.nn.functional.softmax(mx, dim=-1)
+        finally:
+            self.lock.release()
         return probabilities
 
     def choose(self, observation, **kwargs):
         return th.distributions.Categorical(probs=self.probabilities(observation, **kwargs)).sample()
+
+
+class EpsilonGreedyController:
+    """ A wrapper that makes any controller into an epsilon-greedy controller.
+        Keeps track of training-steps to decay exploration automatically. """
+
+    def __init__(self, controller, params={}, exploration_step=1):
+        self.controller = controller
+        self.num_actions = controller.num_actions
+        self.max_eps = params.get('epsilon_start', 1.0)
+        self.min_eps = params.get('epsilon_finish', 0.05)
+        self.anneal_time = int(params.get('epsilon_anneal_time', 10000) / exploration_step)
+        self.num_decisions = 0
+
+    def epsilon(self):
+        """ Returns current epsilon. """
+        return max(1 - self.num_decisions / (self.anneal_time - 1), 0) \
+            * (self.max_eps - self.min_eps) + self.min_eps
+
+    def choose(self, observation, increase_counter=True, **kwargs):
+        """ Returns the (possibly random) actions the agent takes when faced with "observation".
+            Decays epsilon only when increase_counter=True". """
+        eps = self.epsilon()
+        if increase_counter: self.num_decisions += 1
+        if np.random.rand() < eps:
+            return th.randint(self.controller.num_actions, size=(self.controller.num_agents, ), dtype=th.long)
+        else:
+            return self.controller.choose(observation, **kwargs)
+
+    def probabilities(self, observation, **kwargs):
+        """ Returns the probabilities with which the agent would choose actions. """
+        eps = self.epsilon()
+        return eps * th.ones(1, 1) / self.num_actions + \
+            (1 - eps) * self.controller.probabilities(observation, **kwargs)

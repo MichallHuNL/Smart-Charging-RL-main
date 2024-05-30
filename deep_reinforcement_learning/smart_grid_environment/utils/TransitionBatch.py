@@ -1,5 +1,7 @@
 import threading
 import torch as th
+import numpy as np
+
 
 class TransitionBatch:
     """ Simple implementation of a batchof transitionsm (or another dictionary-based tensor structure).
