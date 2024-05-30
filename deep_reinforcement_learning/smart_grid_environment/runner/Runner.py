@@ -88,7 +88,7 @@ class Runner:
             for agent in self.agents:
                 tb[agent].add(self._wrap_transition(self.state[agent], action[agent], r[agent], ns[agent], terminal[agent]))
                 # Terminate the Runner when there are no more runs allowed
-                if self.env._elapsed_steps == self.episode_length: done = True
+                if self.env._elapsed_steps >= self.episode_length: done = True
                 if done or t == (max_steps - 1):
                     tb[agent]['returns'][t] = tb[agent]['rewards'][t]
                     for i in range(t - 1, episode_start -1, -1):

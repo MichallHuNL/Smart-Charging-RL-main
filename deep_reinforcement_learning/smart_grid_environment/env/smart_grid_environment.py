@@ -57,6 +57,8 @@ class SmartChargingEnv(ParallelEnv):
         if seed is not None:
             np.random.seed(seed)
 
+        self._elapsed_steps = 0
+
         self.agents = self.possible_agents[:]
         electricity_price = np.random.uniform(0, self.max_price)
         self.state = {}
