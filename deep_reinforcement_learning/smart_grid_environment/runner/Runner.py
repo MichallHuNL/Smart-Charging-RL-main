@@ -84,6 +84,7 @@ class Runner:
         for t in range(max_steps):
             action = self._actions_to_dict(self.controller.choose(self.state))
             r, ns, terminal, done = self._make_step(action)
+            done = done["__all__"]
             for agent in self.agents:
                 tb[agent].add(self._wrap_transition(self.state[agent], action[agent], r[agent], ns[agent], terminal[agent]))
                 # Terminate the Runner when there are no more runs allowed
