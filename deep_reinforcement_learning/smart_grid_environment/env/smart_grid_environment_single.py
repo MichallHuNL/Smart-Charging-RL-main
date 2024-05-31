@@ -4,7 +4,6 @@ from gymnasium.spaces import Box
 import gymnasium
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3 import PPO
-from pprint import pprint
 
 
 def create_car_schedule(number_cars, time):
@@ -31,14 +30,12 @@ class SingleSmartChargingEnv(gymnasium.Env):
     DELTA_T = float(1)  # 1 hour
     B_MAX = float(40)  # in kWh, maximum battery capacity
     rng = np.random.default_rng(seed=42)  # random number generator for price vector
-    PRICE_VEC = [62.04, 61.42, 58.14, 57.83, 58.30, 62.49, 71.58, 79.36, 86.02, 78.04, 66.51, 64.53, 47.55, 50.00,
-                 63.20, 71.17, 78.28, 89.40, 93.73, 87.19, 77.49, 71.62, 70.06, 66.39]
-    schedule = [[0., 0., 4., 3., 2., 1., 0., 3., 2., 1., 0., 3., 2., 1., 0., 3., 2., 1., 0., 0., 4., 3., 2., 1.],
+    PRICE_VEC = np.array([62.04, 61.42, 58.14, 57.83, 58.30, 62.49, 71.58, 79.36, 86.02, 78.04, 66.51, 64.53, 47.55, 50.00,
+                 63.20, 71.17, 78.28, 89.40, 93.73, 87.19, 77.49, 71.62, 70.06, 66.39]) / 10
+    schedule = np.array([[0., 0., 4., 3., 2., 1., 0., 3., 2., 1., 0., 3., 2., 1., 0., 3., 2., 1., 0., 0., 4., 3., 2., 1.],
                 [2., 1., 0., 0., 0., 1., 0., 0., 0., 0., 6., 5., 4., 3., 2., 1., 0., 0., 3., 2., 1., 0., 1., 0.],
                 [7., 6., 5., 4., 3., 2., 1., 0., 0., 4., 3., 2., 1., 0., 0., 0., 1., 0., 0., 0., 0., 2., 1., 0.],
-                [2., 1., 0., 0., 0., 0., 0., 0., 5., 4., 3., 2., 1., 0., 0., 0., 0., 2., 1., 0., 0., 7., 6.,
-                 5.]]  # A list of shape (num_agents, time) of the schedule of when cars come to the EV
-    rng.random(24) * 10  # random price vector for 24 hours multiplied by 10 (range 0-100)
+                [2., 1., 0., 0., 0., 0., 0., 0., 5., 4., 3., 2., 1., 0., 0., 0., 0., 2., 1., 0., 0., 7., 6., 5.]])  # A list of shape (num_agents, time) of the schedule of when cars come to the EV
     PERIODS = 24  # 24 hours
 
     def __init__(self, num_ports=4, max_soc=1, max_time=24, max_price=10, penalty_factor=0.1, beta=0.01):
@@ -91,7 +88,7 @@ class SingleSmartChargingEnv(gymnasium.Env):
 
         for idx, agent in enumerate(self.agents):
             if self.schedule[idx, self.t] > 0:
-                self.state + [0.2, self.schedule[idx, self.t], electricity_price, 1]
+                self.state = self.state +  [0.2, self.schedule[idx, self.t], electricity_price, 1]
             else:
                 self.state = self.state + [-1, -1, electricity_price, 0]
 
@@ -106,9 +103,9 @@ class SingleSmartChargingEnv(gymnasium.Env):
         total_reward = 0
         total_cost = 0
 
+        self.t = self.t + 1
+
         for idx_agent, action in enumerate(actions):
-            # print(idx_agent)
-            # print(agent)
             soc, remaining_time, price, has_ev = self.state[idx_agent * 4: (idx_agent + 1) * 4]
             agent = self.possible_agents[idx_agent]
 
@@ -130,26 +127,23 @@ class SingleSmartChargingEnv(gymnasium.Env):
 
                 # Update remaining time
                 remaining_time -= 1
-                self.t = self.t + 1
 
-                if self.t >= len(self.PRICE_VEC) - 1:
-                    dones[agent] = True
-                    truncations[agent] = False
-                    has_ev = 0  # Car leaves, port becomes empty
-                    soc = -1  # Undefined state for SoC
-                    remaining_time = -1  # Undefined state for remaining time
-                elif remaining_time <= 0:
-                    if self.schedule[idx_agent, self.t] > 0:
-                        soc, remaining_time,  price, has_ev= 0.2, self.schedule[idx_agent, self.t], self.PRICE_VEC[self.t], 1
-                    else:
-                        soc, remaining_time,  price, has_ev = -1, -1,  self.PRICE_VEC[self.t], 0
-                    dones[agent] = False
-                    truncations[agent] = False
-                else:
-                    dones[agent] = False
-                    truncations[agent] = False
             else:
+                if self.schedule[idx_agent, self.t] > 0:
+                    soc, remaining_time,  price, has_ev= 0.2, self.schedule[idx_agent, self.t], self.PRICE_VEC[self.t], 1
+                else:
+                    soc, remaining_time,  price, has_ev = -1, -1,  self.PRICE_VEC[self.t], 0
+
                 rewards[agent] = 0
+
+
+            if self.t >= len(self.PRICE_VEC) - 1:
+                dones[agent] = True
+                truncations[agent] = False
+                has_ev = 0  # Car leaves, port becomes empty
+                soc = -1  # Undefined state for SoC
+                remaining_time = -1  # Undefined state for remaining time
+            else:
                 dones[agent] = False
                 truncations[agent] = False
 
@@ -209,7 +203,7 @@ if __name__ == '__main__':
     print("Infos:", infos)
 
     # training
-    n_timesteps = 100000  # 1 mil
+    n_timesteps = 1000000  # 1 mil
     n_runs = 5  # 10 trial runs
 
     # instatiate path
@@ -236,6 +230,6 @@ if __name__ == '__main__':
                     tb_log_name=logname)  # Train for a fixed number of timesteps
 
         # save model
-        model.save(f"{modeldir}/{logname}")
+        # model.save(f"{modeldir}/{logname}")
 
 

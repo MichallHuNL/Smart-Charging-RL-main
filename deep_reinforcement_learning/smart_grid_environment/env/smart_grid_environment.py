@@ -11,7 +11,15 @@ class SmartChargingEnv(ParallelEnv):
     DELTA_T = float(1)  # 1 hour
     B_MAX = float(40)  # in kWh, maximum battery capacity
     rng = np.random.default_rng(seed=42)  # random number generator for price vector
-    PRICE_VEC = rng.random(24) * 10  # random price vector for 24 hours multiplied by 10 (range 0-100)
+    PRICE_VEC = np.array(
+        [62.04, 61.42, 58.14, 57.83, 58.30, 62.49, 71.58, 79.36, 86.02, 78.04, 66.51, 64.53, 47.55, 50.00,
+         63.20, 71.17, 78.28, 89.40, 93.73, 87.19, 77.49, 71.62, 70.06, 66.39]) / 10
+    schedule = np.array(
+        [[0., 0., 4., 3., 2., 1., 0., 3., 2., 1., 0., 3., 2., 1., 0., 3., 2., 1., 0., 0., 4., 3., 2., 1.],
+         [2., 1., 0., 0., 0., 1., 0., 0., 0., 0., 6., 5., 4., 3., 2., 1., 0., 0., 3., 2., 1., 0., 1., 0.],
+         [7., 6., 5., 4., 3., 2., 1., 0., 0., 4., 3., 2., 1., 0., 0., 0., 1., 0., 0., 0., 0., 2., 1., 0.],
+         [2., 1., 0., 0., 0., 0., 0., 0., 5., 4., 3., 2., 1., 0., 0., 0., 0., 2., 1., 0., 0., 7., 6.,
+          5.]])  # A list of shape (num_agents, time) of the schedule of when cars come to the EV
     PERIODS = 24  # 24 hours
 
     def __init__(self, num_ports=4, max_soc=1, max_time=24, max_price=10, penalty_factor=0.1, beta=0.01):
@@ -62,12 +70,11 @@ class SmartChargingEnv(ParallelEnv):
         self.agents = self.possible_agents[:]
         electricity_price = np.random.uniform(0, self.max_price)
         self.state = {}
-        for agent in self.agents:
-            car_active = np.random.choice([0, 1])
-            if car_active:
+        for idx, agent in enumerate(self.agents):
+            if self.schedule[idx, self._elapsed_steps] > 0:
                 self.state.update({agent: np.array([
                     0.2,
-                    np.random.uniform(0, self.max_time),
+                    self.schedule[idx, self._elapsed_steps],
                     electricity_price,
                     1
                 ])})
@@ -81,6 +88,9 @@ class SmartChargingEnv(ParallelEnv):
 
         return self.state, {agent: {} for agent in self.agents}
 
+    def get_index(self, agent):
+        return int(agent[5])
+
     def step(self, actions):
         rewards = {}
         dones = {}
@@ -93,6 +103,7 @@ class SmartChargingEnv(ParallelEnv):
         self._elapsed_steps += 1
 
         for agent, action in actions.items():
+            idx = self.get_index(agent)
             soc, remaining_time, price, has_ev = self.state[agent]
             if has_ev == 1:
                 # Apply action to SoC
@@ -110,23 +121,30 @@ class SmartChargingEnv(ParallelEnv):
                 rewards[agent] = reward
                 total_reward += reward
 
-                # Update remaining time
-                remaining_time -= 1 / self.max_time
+                remaining_time -= 1
 
-                if remaining_time <= 0:
-                    dones[agent] = True
-                    truncations[agent] = False
-                    has_ev = 0  # Car leaves, port becomes empty
-                    soc = -1  # Undefined state for SoC
-                    remaining_time = -1  # Undefined state for remaining time
-                else:
-                    dones[agent] = False
-                    truncations[agent] = False
 
             else:
+                if self._elapsed_steps < len(self.PRICE_VEC):
+                    if self.schedule[idx, self._elapsed_steps] > 0:
+                            soc, remaining_time, price, has_ev = 0.2, self.schedule[idx, self._elapsed_steps], self.PRICE_VEC[
+                                self._elapsed_steps], 1
+                    else:
+                        soc, remaining_time, price, has_ev = -1, -1, self.PRICE_VEC[self._elapsed_steps], 0
+
                 rewards[agent] = 0
+
+
+            if self._elapsed_steps >= len(self.PRICE_VEC) - 1:
+                dones[agent] = True
+                truncations[agent] = False
+                has_ev = 0  # Car leaves, port becomes empty
+                soc = -1  # Undefined state for SoC
+                remaining_time = -1  # Undefined state for remaining time
+            else:
                 dones[agent] = False
                 truncations[agent] = False
+
 
             self.state[agent] = np.array([soc, remaining_time, price, has_ev], dtype=np.float32)
             infos[agent] = {}
