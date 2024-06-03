@@ -1,6 +1,6 @@
 import numpy as np
 from pettingzoo import ParallelEnv
-from gymnasium.spaces import Box
+from gymnasium.spaces import Box, Discrete
 
 class SmartChargingEnv(ParallelEnv):
     metadata = {"render.modes": ["human"], "name": "neighborhood_charging_env"}
@@ -44,11 +44,12 @@ class SmartChargingEnv(ParallelEnv):
         self.beta = beta
 
         # All the different ports defined according to the interface
-        self.possible_agents = [f'port_{i}' for i in range(self.num_ports)]
+        self.possible_agents = [i for i in range(self.num_ports)]
         self.agents = self.possible_agents[:]
 
         # Define action and observation spaces for each agent
-        self.action_spaces = {agent: Box(low=-1, high=1, shape=(1,), dtype=np.float32) for agent in self.possible_agents}
+        self.n_actions = 3
+        self.action_spaces = {agent: Discrete(start=-1, n=self.n_actions) for agent in self.possible_agents}
         self.observation_spaces = {
             agent: Box(
                 low=np.array([-1, -1, 0, 0]),
@@ -89,7 +90,7 @@ class SmartChargingEnv(ParallelEnv):
         return self.state, {agent: {} for agent in self.agents}
 
     def get_index(self, agent):
-        return int(agent[5])
+        return int(agent)
 
     def step(self, actions):
         rewards = {}
@@ -190,7 +191,7 @@ if __name__ == '__main__':
     state, _ = env.reset(seed=0)
     print('Check implementation: ', parallel_api_test(env))
     print("Initial state:", state)
-    actions = {f'port_{i}': env.action_spaces[f'port_{i}'].sample() for i in range(env.num_ports)}
+    actions = {i: env.action_spaces[f'port_{i}'].sample() for i in range(env.num_ports)}
     state, rewards, dones, truncations, infos = env.step(actions)
     print("State after step:", state)
     print("Rewards:", rewards)

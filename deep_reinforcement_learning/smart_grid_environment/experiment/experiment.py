@@ -18,7 +18,7 @@ class Experiment:
         self.env_steps = []
         self.total_run_time = 0.0
         self.num_agents = params.get('n_agents', 4)
-        self.agents = [f'port_{i}' for i in range(self.num_agents)]
+        self.agents = [i for i in range(self.num_agents)]
         self.episode_losses = {agent: [] for agent in self.agents}
 
     def plot_training(self, update=False):

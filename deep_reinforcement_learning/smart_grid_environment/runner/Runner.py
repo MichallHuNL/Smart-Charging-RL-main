@@ -13,7 +13,7 @@ class Runner:
     def __init__(self, env: ParallelEnv, controller, params={}):
         self.env = env
         self.n_agents = params.get('n_agents', 4)
-        self.agents = [f'port_{i}' for i in range(self.n_agents)]
+        self.agents = [i for i in range(self.n_agents)]
         self.cont_actions = isinstance(self.env.action_space(self.env.agents[0]), gymnasium.spaces.Box)
         self.controller = controller
         self.episode_length = params.get('max_episode_length', 300)
@@ -30,20 +30,22 @@ class Runner:
         self.env.close()
 
     def transition_format(self):
-        """ Returns the format of transtions: a dictionary of (shape, dtype) entries for each key. """
-        return {'actions': ((1,), th.long),
+        """ Returns the format of transitions: a dictionary of (shape, dtype) entries for each key. """
+        return {'actions': ((1,), th.int64),
                 'states': (self.state_shape, th.float32),
                 'next_states': (self.state_shape, th.float32),
                 'rewards': ((1,),  th.float32),
                 'dones': ((1,), th.bool),
-                'returns': ((1,), th.float32)}
+                'returns': ((1,), th.float32),
+                'probabilities': ((self.env.n_actions,),  th.float32)
+                }
 
-    def _wrap_transition(self, s, a, r, ns, d):
+    def _wrap_transition(self, s, a, r, ns, d, p):
         """ Takes a transition and returns a corresponding dictionary. """
         trans = {}
         form = self.transition_format()
 
-        for key, val in [('states', s), ('actions', a), ('rewards', r), ('next_states', ns), ('dones', d)]:
+        for key, val in [('states', s), ('actions', a), ('rewards', r), ('next_states', ns), ('dones', d), ('probabilities', p)]:
             if not isinstance(val, th.Tensor):
                 if isinstance(val, numbers.Number) or isinstance(val, bool): val = [val]
                 val = th.tensor(val, dtype=form[key][1])
@@ -54,13 +56,12 @@ class Runner:
     def _actions_to_dict(self, actions):
         d = {}
         for agent, action in enumerate(actions):
-            d[f'port_{agent}'] = [action]
+            d[agent] = [action]
 
         return d
 
     def _make_step(self, a):
         """ Make an actual step inside the environment given to the runner and retrieve information """
-
         ns, r, t, d, _ = self.env.step(a)
         self.sum_rewards += th.sum(th.tensor(list(r.values())), dim=0)
         return r, ns, t, d or t
@@ -84,9 +85,10 @@ class Runner:
         for t in range(max_steps):
             action = self._actions_to_dict(self.controller.choose(self.state))
             r, ns, terminal, done = self._make_step(action)
+            probs = self.controller.probabilities(self.state)
             done = done["__all__"]
             for agent in self.agents:
-                tb[agent].add(self._wrap_transition(self.state[agent], action[agent], r[agent], ns[agent], terminal[agent]))
+                tb[agent].add(self._wrap_transition(self.state[agent], action[agent], r[agent], ns[agent], terminal[agent], probs[agent]))
                 # Terminate the Runner when there are no more runs allowed
                 if self.env._elapsed_steps >= self.episode_length: done = True
                 if done or t == (max_steps - 1):

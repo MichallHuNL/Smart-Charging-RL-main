@@ -8,22 +8,26 @@ from ..controller.Controller import LogitsController, EpsilonGreedyController
 from ..runner.Runner import Runner
 from ..learner.qlearner import QLearner
 from ..utils.TransitionBatch import TransitionBatch
+from ..learner.comalearner import COMALearner
 
 
 class ActorCriticExperiment(Experiment):
-    def __init__(self, params: dict, models, env: ParallelEnv, learner=None, **kwargs):
+    def __init__(self, params: dict, models, env: ParallelEnv, critic, learner=None, **kwargs):
         super().__init__(params, models, **kwargs)
         self.max_episodes = params.get('max_episodes', int(1E6))
         self.max_steps = params.get('max_steps', int(1E9))
         self.grad_repeats = params.get('grad_repeats', 1)
         self.batch_size = params.get('batch_size', 1024)
         self.num_agents = params.get('n_agents', 4)
-        self.agents = [f'port_{i}' for i in range(self.num_agents)]
-        self.controller = LogitsController(models, num_actions=env.action_space(env.agents[0]).shape[0], params=params)
+        self.method = params.get('method', 'IQL')
+        self.agents = [i for i in range(self.num_agents)]
+        self.controller = LogitsController(models, num_actions=env.n_actions, params=params)
         self.controller = EpsilonGreedyController(controller=self.controller, params=params)
         self.runner = Runner(env, self.controller, params=params)
-        self.learners = [QLearner(model, idx, params) if learner is None else learner for (idx, model) in
-                         enumerate(models)]
+        if self.method == 'COMA':
+            self.learner = COMALearner(models, critic, params)
+        elif self.method == 'IQL':
+            self.learners = [QLearner(model, idx, params) if learner is None else learner for (idx, model) in enumerate(models)]
 
     def close(self):
         """ Overrides Experiment.close() """
@@ -47,9 +51,15 @@ class ActorCriticExperiment(Experiment):
                 self.episode_lengths.append(batch['episode_length'])
                 self.episode_returns.append(batch['episode_reward'])
             # Make a gradient update step
-            for agent in self.agents:
-                loss = [learner.train(batch['buffer'][agent]) for learner in self.learners]
-                self.episode_losses[agent].append(np.mean(loss))
+            if self.method == 'IQL':
+                for agent in self.agents:
+                    loss = [learner.train(batch['buffer'][agent]) for learner in self.learners]
+                    self.episode_losses[agent].append(np.mean(loss))
+            elif self.method == 'COMA':
+                # Make a gradient update step
+                policy_losses, critic_loss = self.learner.train(batch['buffer'])
+                for agent, policy_loss in zip(self.agents, policy_losses):
+                    self.episode_losses[agent].append(policy_loss.item())
             # Quit if maximal number of environment steps is reached
             if env_steps >= self.max_steps: break
             # Show intermediate results

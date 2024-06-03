@@ -60,7 +60,7 @@ class SingleSmartChargingEnv(gymnasium.Env):
         self.beta = beta
 
         # All the different ports defined according to the interface
-        self.possible_agents = [f'port_{i}' for i in range(self.num_ports)]
+        self.possible_agents = [i for i in range(self.num_ports)]
         self.agent_index = {agent: idx for idx, agent in enumerate(self.possible_agents)}
 
         self.agents = self.possible_agents[:]
