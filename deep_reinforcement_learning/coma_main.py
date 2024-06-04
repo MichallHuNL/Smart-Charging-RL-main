@@ -18,7 +18,7 @@ if __name__ == '__main__':
     models = [th.nn.Sequential(th.nn.Linear(state_dim, 128), th.nn.ReLU(),
                                th.nn.Linear(128, 512), th.nn.ReLU(),
                                th.nn.Linear(512, 128), th.nn.ReLU(),
-                               th.nn.Linear(128, n_actions + 1)) for _ in range(num_agents)]
+                               th.nn.Linear(128, n_actions)) for _ in range(num_agents)]
 
     critic = CentralizedCritic(state_dim, n_actions, num_agents)
     experiment = ActorCriticExperiment(params, models, env, critic)
