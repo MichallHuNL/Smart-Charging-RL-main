@@ -35,7 +35,7 @@ class IQLSmartChargingEnv(gymnasium.Env):
     charging_reward_constant = 5  # Constant for linear multiplication for charging reward
     non_full_ev_cost_constant = 20  # Cost for EV leaving without full charge
     over_peak_load_constant = 5  # Cost for going over peak load that is multiplied by load
-    peak_load = 1.5  # Maximum allowed load
+    peak_load = 0.9  # Maximum allowed load
     rng = np.random.default_rng(seed=42)  # random number generator for price vector
     PRICE_VEC = np.array([62.04, 61.42, 58.14, 57.83, 58.30, 62.49, 71.58, 79.36, 86.02, 78.04, 66.51, 64.53, 47.55, 50.00,
                  63.20, 71.17, 78.28, 89.40, 93.73, 87.19, 77.49, 71.62, 70.06, 66.39]) / 10
@@ -121,7 +121,7 @@ class IQLSmartChargingEnv(gymnasium.Env):
 
         if has_ev == 1:
             # Apply action to SoC
-            soc += action_clipped * self.P_MAX  # Charging or discharging action
+            soc += action_clipped  # Charging or discharging action
             # soc = np.clip(soc, 0, self.max_soc)[0]
 
             # Calculate reward
@@ -157,12 +157,14 @@ class IQLSmartChargingEnv(gymnasium.Env):
                 else:
                     soc, remaining_time,  price, has_ev = 0, -1,  self.PRICE_VEC[self.t], 0
 
+            price = self.PRICE_VEC[self.t]
+
 
 
 
         self.state = [soc, remaining_time, price, has_ev]
 
-        if action_clipped > self.peak_load - 1.1:
+        if action_clipped > self.peak_load - 0.5:
             reward -= action_clipped * self.over_peak_load_constant
         return np.array(self.state, dtype="float32"), reward, done, False, infos
 
@@ -219,7 +221,7 @@ def get_info():
                 remaining_times[step + 1, i] = obs[1]
 
 
-    make_plots(socs, actions, prices, exists, remaining_times, np.transpose(np.array(envs[0].ends)))
+    make_plots(socs, actions, prices, exists, remaining_times, np.transpose(np.array(envs[0].ends)), np.array(envs[0].schedule))
 
 
 
@@ -244,7 +246,7 @@ if __name__ == '__main__':
     print("Infos:", infos)
 
     # training
-    n_timesteps = 10000  # 1 mil
+    n_timesteps = 1000000  # 1 mil
     n_runs = 1  # 10 trial runs
 
     # instatiate path

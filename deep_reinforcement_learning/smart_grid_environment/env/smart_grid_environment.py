@@ -1,6 +1,7 @@
 import numpy as np
 from pettingzoo import ParallelEnv
 from gymnasium.spaces import Box
+import torch
 
 class SmartChargingEnv(ParallelEnv):
     metadata = {"render.modes": ["human"], "name": "neighborhood_charging_env"}
@@ -31,7 +32,9 @@ class SmartChargingEnv(ParallelEnv):
                      [0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0.]])
     PERIODS = 24  # 24 hours
 
-    def __init__(self, num_ports=4, max_soc=1, max_time=24, max_price=10, penalty_factor=0.1, beta=0.01):
+
+    # TODO: add peakload
+    def __init__(self, num_ports=4, max_soc=1, max_time=24, max_price=10, penalty_factor=0.1, beta=0.01, test = False):
         super().__init__()
 
         # Number of charging ports
@@ -65,6 +68,7 @@ class SmartChargingEnv(ParallelEnv):
                 dtype=np.float32
             ) for agent in self.possible_agents
         }
+        self.test = test
 
         self._elapsed_steps = 0
 
@@ -77,7 +81,7 @@ class SmartChargingEnv(ParallelEnv):
         self._elapsed_steps = 0
 
         self.agents = self.possible_agents[:]
-        electricity_price = np.random.uniform(0, self.max_price)
+        electricity_price = self.PRICE_VEC[0]
         self.state = {}
         for idx, agent in enumerate(self.agents):
             if self.schedule[idx, self._elapsed_steps] > 0:
@@ -116,8 +120,10 @@ class SmartChargingEnv(ParallelEnv):
         for agent, action in actions.items():
             idx = self.get_index(agent)
             soc, remaining_time, price, has_ev = self.state[agent]
-
-            action_clipped = action[0].item()
+            if self.test:
+                action_clipped = action
+            else:
+                action_clipped = action[0].item()
             if action_clipped < -soc:
                 action_clipped = -soc
             elif action_clipped > 1-soc:
@@ -125,8 +131,8 @@ class SmartChargingEnv(ParallelEnv):
 
             if has_ev == 1:
                 # Apply action to SoC
-                soc += action_clipped * self.P_MAX  # Charging or discharging action
-                soc = np.clip(soc, 0, self.max_soc)
+                soc += action_clipped  # Charging or discharging action
+                # soc = np.clip(soc, 0, self.max_soc)
 
                 # Calculate reward
                 cost = price * action_clipped * self.power_cost_constant
@@ -164,13 +170,10 @@ class SmartChargingEnv(ParallelEnv):
                                 self._elapsed_steps], 1
                     else:
                         soc, remaining_time, price, has_ev = 0, -1, self.PRICE_VEC[self._elapsed_steps], 0
+                price = self.PRICE_VEC[self._elapsed_steps]
 
             if agent not in rewards:
                 rewards[agent] = 0
-
-
-
-
 
 
             self.state[agent] = np.array([soc, remaining_time, price, has_ev], dtype=np.float32)

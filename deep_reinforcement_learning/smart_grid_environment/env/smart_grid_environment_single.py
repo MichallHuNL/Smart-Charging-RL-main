@@ -35,7 +35,7 @@ class SingleSmartChargingEnv(gymnasium.Env):
     charging_reward_constant = 5 # Constant for linear multiplication for charging reward
     non_full_ev_cost_constant = 20 # Cost for EV leaving without full charge
     over_peak_load_constant = 5 # Cost for going over peak load that is multiplied by load
-    peak_load = 1.5 # Maximum allowed load
+    peak_load = 0.9 # Maximum allowed load
     rng = np.random.default_rng(seed=42)  # random number generator for price vector
     PRICE_VEC = np.array([62.04, 61.42, 58.14, 57.83, 58.30, 62.49, 71.58, 79.36, 86.02, 78.04, 66.51, 64.53, 47.55, 50.00,
                  63.20, 71.17, 78.28, 89.40, 93.73, 87.19, 77.49, 71.62, 70.06, 66.39]) / 10
@@ -132,7 +132,7 @@ class SingleSmartChargingEnv(gymnasium.Env):
 
             if has_ev == 1:
                 # Apply action to SoC
-                soc += action_clipped * self.P_MAX  # Charging or discharging action
+                soc += action_clipped  # Charging or discharging action
                 if soc < 0 or soc> self.max_soc:
                     a = 2
                 soc = np.clip(soc, 0, self.max_soc)
@@ -273,7 +273,7 @@ if __name__ == '__main__':
     print("Infos:", infos)
 
     # training
-    n_timesteps = 1000  # 1 mil
+    n_timesteps = 1000000  # 1 mil
     n_runs = 1  # 10 trial runs
 
     # instatiate path

@@ -8,12 +8,8 @@ non_full_ev_cost_constant = 20
 over_peak_load_constant = 5
 peak_load = 1.5
 
-def calculate_reward(soc, action, price, exists, remaining_time, end):
-    P_MAX = 1
+def calculate_reward(action, price, exists, end):
     if exists:
-        soc += action * P_MAX  # Charging or discharging action
-        soc = np.clip(soc, 0, 1)
-
         # Cost of paying for electricity
         cost = price * action
         reward = -cost * power_cost_constant
@@ -33,7 +29,7 @@ def get_rewards(socs, actions, prices, exists, remaining_times, ends):
     total_rewards = np.zeros((prices.shape))
     for i in range(len(prices)):
         for j in range(socs.shape[1]):
-            reward = calculate_reward(socs[i, j], actions[i, j], prices[i], exists[i, j], remaining_times[i, j], ends[i, j])
+            reward = calculate_reward(actions[i, j], prices[i], exists[i, j], ends[i, j])
             rewards[i,j] = reward
             total_rewards[i] += reward
         if(sum(actions[i, :]) > peak_load):
@@ -82,6 +78,7 @@ def find_non_zero_intervals(arr):
 
 def make_plots(socs, actions, prices, exists, remaining_times, ends, schedule):
     actions_clipped = np.clip(actions, -socs, 1 - socs)
+    actions_clipped = np.clip(actions_clipped, -0.5, 0.5)
     rewards, total_rewards = get_rewards(socs, actions_clipped, prices, exists, remaining_times, ends)
     print(rewards)
     print(total_rewards)
