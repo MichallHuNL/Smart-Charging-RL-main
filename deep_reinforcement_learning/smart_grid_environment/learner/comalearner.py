@@ -44,7 +44,8 @@ class COMALearner:
         return advantage
 
     def critic_reward(self, rewards, actions):
-        return rewards - self.env.over_peak_load_constant * max(0, th.sum(th.abs_(actions)) - self.env.peak_load)
+        actions = th.tensor(self.env.action_numpy, dtype=th.float64)[actions]
+        return rewards - self.env.over_peak_load_constant * th.maximum(th.zeros((actions.shape[0],)), th.sum(actions, dim=-1) - self.env.peak_load).unsqueeze(dim=-1)
 
     def train_critic(self, batch):
         """ Trains the critic network. """
@@ -58,7 +59,7 @@ class COMALearner:
             target_q_values = self.critic_reward(rewards, actions) + self.gamma * (~dones * self.critic_values(next_states, actions))
 
         q_values = self.critic_values(states, actions).expand(target_q_values.shape)
-        critic_loss = self.criterion(q_values, target_q_values.detach())
+        critic_loss = self.criterion(q_values, target_q_values.float().detach())
 
         self.critic_optimizer.zero_grad()
         critic_loss.backward()

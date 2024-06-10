@@ -71,7 +71,7 @@ class SmartChargingEnv(ParallelEnv):
         self.possible_agents = [i for i in range(self.num_ports)]
         self.agents = self.possible_agents[:]
 
-        self.action_numpy = np.arange(start=-5, stop=5, step=1)
+        self.action_numpy = np.arange(start=-1, stop=1, step=0.2)
 
         # Define action and observation spaces for each agent
         self.action_spaces = {agent: Discrete(self.n_actions, seed=self.rng) for agent in
