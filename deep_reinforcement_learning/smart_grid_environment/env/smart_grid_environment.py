@@ -144,9 +144,9 @@ class SmartChargingEnv(ParallelEnv):
                 if not self.test:
                     action = action[0].item()
 
-                action_clipped = ((float(action) / self.n_actions) * 2.0 - 1.0) * self.P_MAX
+                action = ((float(action) / (self.n_actions // 2)) - 1.0) * self.P_MAX
 
-                action_clipped = np.clip(action_clipped, -soc, self.max_soc - soc)
+                action_clipped = np.clip(action, -soc, self.max_soc - soc)
                 # Apply action to SoC
                 soc += action_clipped  # Charging or discharging action
 
