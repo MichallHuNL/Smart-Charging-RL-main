@@ -31,9 +31,10 @@ class IQLSmartChargingEnv(gymnasium.Env):
     P_MAX = 0.5  # maximum charging power of car
     DELTA_T = float(1)  # 1 hour
     B_MAX = float(40)  # in kWh, maximum battery capacity
-    power_cost_constant = 0.5  # Constant for linear multiplication for cost of power
-    charging_reward_constant = 5  # Constant for linear multiplication for charging reward
-    non_full_ev_cost_constant = 20  # Cost for EV leaving without full charge
+    power_cost_constant = 1  # Constant for linear multiplication for cost of power
+    iql_peak_load = 0.8
+    charging_reward_constant = 4  # Constant for linear multiplication for charging reward
+    non_full_ev_cost_constant = 15  # Cost for EV leaving without full charge
     over_peak_load_constant = 5  # Cost for going over peak load that is multiplied by load
     peak_load = 0.9  # Maximum allowed load
     rng = np.random.default_rng(seed=42)  # random number generator for price vector
@@ -75,7 +76,7 @@ class IQLSmartChargingEnv(gymnasium.Env):
         self.beta = beta
 
         # Define action and observation spaces for each agent
-        self.action_space = Box(low=-self.P_MAX, high=self.P_MAX, dtype=np.float32)
+        self.action_space = Box(low=-1, high=1, dtype=np.float32)
 
         low = []
         self.observation_space = Box(
@@ -113,7 +114,7 @@ class IQLSmartChargingEnv(gymnasium.Env):
 
         soc, remaining_time, price, has_ev = self.state
 
-        action_clipped = action[0]
+        action_clipped = action[0] * self.P_MAX
         if action_clipped < -soc:
             action_clipped = -soc
         elif action_clipped > 1 - soc:
@@ -131,7 +132,7 @@ class IQLSmartChargingEnv(gymnasium.Env):
 
             reward += action_clipped * self.charging_reward_constant
 
-            if self.t < len(self.PRICE_VEC) and self.ends[self.agent_nr, self.t] == 1:
+            if self.t < len(self.PRICE_VEC) and self.ends[self.agent_nr, self.t] == 1 and soc < 1:
                 reward -= self.non_full_ev_cost_constant  # Penalty for car leaving without full charge
 
             # Update remaining time
@@ -149,7 +150,6 @@ class IQLSmartChargingEnv(gymnasium.Env):
         else:
             done = False
             truncation = False
-            price = self.PRICE_VEC[self.t]
             if has_ev < 1:
                 # print('here', self.schedule[idx_agent, self.t] )
                 if self.schedule[self.agent_nr, self.t] > 0:
@@ -164,7 +164,7 @@ class IQLSmartChargingEnv(gymnasium.Env):
 
         self.state = [soc, remaining_time, price, has_ev]
 
-        if action_clipped > self.peak_load - 0.5:
+        if action_clipped > self.iql_peak_load:
             reward -= action_clipped * self.over_peak_load_constant
         return np.array(self.state, dtype="float32"), reward, done, False, infos
 
@@ -210,7 +210,7 @@ def get_info():
         remaining_times[0, i] = obs[1]
 
         for step in range(n_steps):
-            action, _ = model.predict(obs)  # 1st step is based on reset()
+            action, _ = models[i].predict(obs)  # 1st step is based on reset()
             actions[step, i] = action
             obs, reward, done, _, info = envs[i].step(action)
 
@@ -246,7 +246,7 @@ if __name__ == '__main__':
     print("Infos:", infos)
 
     # training
-    n_timesteps = 1000000  # 1 mil
+    n_timesteps = 100000  # 1 mil
     n_runs = 1  # 10 trial runs
 
     # instatiate path
@@ -263,15 +263,16 @@ if __name__ == '__main__':
     # Force Stable Baselines3 to use CPU
     os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
-
+    models = []
     # create model
     for j in range(num_agents):
         for i in range(n_runs):
             print(f"training run trial, {i + 1}")
             logname = f"Training_{i + 1}"
-            model = PPO("MlpPolicy", env=envs[j], verbose=0, tensorboard_log=logdir, seed=i * 2)
+            model = PPO("MlpPolicy", env=envs[j], verbose=0, tensorboard_log=logdir, seed= i * 2)
             model.learn(total_timesteps=n_timesteps, progress_bar=True,
                         tb_log_name=logname)  # Train for a fixed number of timesteps
+            models.append(model)
 
         # save model
         # model.save(f"{modeldir}/{logname}")

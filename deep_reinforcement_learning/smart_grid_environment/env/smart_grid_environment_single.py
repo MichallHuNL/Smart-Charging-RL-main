@@ -77,7 +77,7 @@ class SingleSmartChargingEnv(gymnasium.Env):
         self.agents = self.possible_agents[:]
 
         # Define action and observation spaces for each agent
-        self.action_space = Box(low=-self.P_MAX, high=self.P_MAX, shape=(self.num_ports,), dtype=np.float32)
+        self.action_space = Box(low=-1, high=1, shape=(self.num_ports,), dtype=np.float32)
 
         low = []
         self.observation_space = Box(
@@ -124,7 +124,7 @@ class SingleSmartChargingEnv(gymnasium.Env):
             soc, remaining_time, price, has_ev = self.state[idx_agent * 4: (idx_agent + 1) * 4]
             agent = self.possible_agents[idx_agent]
 
-            action_clipped = action
+            action_clipped = action * self.P_MAX
             if action_clipped < -soc:
                 action_clipped = -soc
             elif action_clipped > 1-soc:
@@ -133,9 +133,8 @@ class SingleSmartChargingEnv(gymnasium.Env):
             if has_ev == 1:
                 # Apply action to SoC
                 soc += action_clipped  # Charging or discharging action
-                if soc < 0 or soc> self.max_soc:
-                    a = 2
-                soc = np.clip(soc, 0, self.max_soc)
+
+                # soc = np.clip(soc, 0, self.max_soc)
 
                 # Calculate reward
                 cost = price * action_clipped
@@ -273,7 +272,7 @@ if __name__ == '__main__':
     print("Infos:", infos)
 
     # training
-    n_timesteps = 1000000  # 1 mil
+    n_timesteps = 10  # 1 mil
     n_runs = 1  # 10 trial runs
 
     # instatiate path
