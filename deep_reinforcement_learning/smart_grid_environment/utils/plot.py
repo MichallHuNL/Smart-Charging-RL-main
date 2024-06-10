@@ -39,10 +39,10 @@ def get_rewards(socs, actions, prices, exists, remaining_times, ends):
     return rewards, total_rewards
 
 
-def get_action_if_ev(actions, exists):
-    action_if_ev = actions
-    action_if_ev[exists != 1] = 0
-    return action_if_ev
+# def get_action_if_ev(actions, exists):
+#     action_if_ev = actions
+#     action_if_ev[exists != 1] = 0
+#     return action_if_ev
 
 def get_socs_when_leave(socs, actions, ends):
     socs_plus_leaves = socs
@@ -53,11 +53,11 @@ def get_socs_when_leave(socs, actions, ends):
     return socs_plus_leaves
 
 
-def find_non_zero_intervals(arr):
+def find_non_zero_intervals(row):
     intervals = []
     start = None
 
-    for i, val in enumerate(arr):
+    for i, val in enumerate(row):
         if val != 0 and start is None:
             start = i
         elif val == 0 and start is not None:
@@ -65,7 +65,7 @@ def find_non_zero_intervals(arr):
             start = None
 
     if start is not None:
-        intervals.append((start, len(arr) - 1))
+        intervals.append((start, len(row) - 1))
 
     return intervals
 
@@ -80,15 +80,15 @@ def find_non_zero_intervals(arr):
 # ends - numpy array of size (steps, num_agents)
 # schedule - numpy array of size (steps, num_agents)
 def make_plots(socs, actions, prices, exists, remaining_times, ends, schedule):
-    actions_clipped = actions * p_max
-    actions_clipped = np.clip(actions_clipped, -socs, 1 - socs)
+    # actions_clipped = actions * p_max
+    # actions_clipped = np.clip(actions_clipped, -socs, 1 - socs)
     # actions_clipped = np.clip(actions_clipped, -1, 0.5)
-    rewards, total_rewards = get_rewards(socs, actions_clipped, prices, exists, remaining_times, ends)
-    socs = get_socs_when_leave(socs, actions_clipped, ends)
+    rewards, total_rewards = get_rewards(socs, actions, prices, exists, remaining_times, ends)
+    socs = get_socs_when_leave(socs, actions, ends)
     print(rewards)
     print(total_rewards)
-    action_if_ev = get_action_if_ev(actions_clipped, exists)
-    print(action_if_ev)
+    # action_if_ev = get_action_if_ev(actions, exists)
+    # print(action_if_ev)
 
     # Get intervals for each row
     intervals = [find_non_zero_intervals(row) for row in schedule]
@@ -105,7 +105,9 @@ def make_plots(socs, actions, prices, exists, remaining_times, ends, schedule):
 
         # plot soc_rl vs soc_exact
         plt.plot(np.arange(0, len(socs), 1), socs[:, i], label=f'soc-agent{i}')
-        plt.bar(np.arange(0, len(actions_clipped), 1), actions_clipped[:, i], label=f'action-agent{i}')
+
+
+        plt.bar(np.arange(0, len(actions), 1), actions[:, i], label=f'action-agent{i}')
 
         # set opacity
         plt.setp(plt.gca().patches, alpha=0.3)
@@ -136,8 +138,8 @@ def make_plots(socs, actions, prices, exists, remaining_times, ends, schedule):
         # display legend on top right
         plt.legend(loc="upper right")
         plt.tight_layout()
-        # plt.show()
-        plt.savefig(f'plots/agent_{i}.png')
+        plt.show()
+        # plt.savefig(f'plots/agent_{i}.png')
 
     title = 'Total rewards'
 
@@ -175,5 +177,5 @@ def make_plots(socs, actions, prices, exists, remaining_times, ends, schedule):
     plt.legend(loc="upper right")
     plt.tight_layout()
 
-    # plt.show()
-    plt.savefig(f'plots/total_rewards.png')
+    plt.show()
+    # plt.savefig(f'plots/total_rewards.png')
