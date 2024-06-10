@@ -3,6 +3,9 @@ from pettingzoo import ParallelEnv
 from gymnasium.spaces import Box
 import torch
 
+from deep_reinforcement_learning.smart_grid_environment.utils.schedule import calculate_schedule
+
+
 class SmartChargingEnv(ParallelEnv):
     metadata = {"render.modes": ["human"], "name": "neighborhood_charging_env"}
 
@@ -34,11 +37,14 @@ class SmartChargingEnv(ParallelEnv):
 
 
     # TODO: add peakload
-    def __init__(self, num_ports=4, max_soc=1, max_time=24, max_price=10, penalty_factor=0.1, beta=0.01, test = False):
+    def __init__(self, num_ports=4, leaving_soc = 0.8, max_soc=1, max_time=24, max_price=10, penalty_factor=0.1, beta=0.01, test = False):
         super().__init__()
 
         # Number of charging ports
         self.num_ports = num_ports
+
+        # Minimum soc to not receive punishment
+        self.leaving_soc = leaving_soc
 
         # Maximum SOC of an EV arriving
         self.max_soc = max_soc
@@ -81,6 +87,17 @@ class SmartChargingEnv(ParallelEnv):
         self._elapsed_steps = 0
 
         self.agents = self.possible_agents[:]
+
+        # TODO: get price based on real data
+        self.PRICE_VEC = np.random.rand(*self.PRICE_VEC.shape) * self.max_price
+
+        arrivals = self.rng.integers(self.PERIODS, size=self.PERIODS)
+        departures = self.rng.integers(arrivals, self.PERIODS + 1, size=self.PERIODS)
+
+        self.schedule = calculate_schedule(self.schedule.shape, arrivals, departures)
+
+        # print("schedule: ", self.schedule, flush=True)
+        
         electricity_price = self.PRICE_VEC[0]
         self.state = {}
         for idx, agent in enumerate(self.agents):
@@ -142,7 +159,7 @@ class SmartChargingEnv(ParallelEnv):
                 reward += action_clipped * self.charging_reward_constant
 
 
-                if self._elapsed_steps < len(self.PRICE_VEC) and self.ends[idx, self._elapsed_steps]:
+                if soc < self.leaving_soc and self._elapsed_steps < len(self.PRICE_VEC) and self.ends[idx, self._elapsed_steps]:
                     reward -= self.non_full_ev_cost_constant  # Penalty for car leaving without full charge
 
                 rewards[agent] = reward
