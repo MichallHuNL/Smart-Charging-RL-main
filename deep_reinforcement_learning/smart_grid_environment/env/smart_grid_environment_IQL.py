@@ -158,10 +158,6 @@ class IQLSmartChargingEnv(gymnasium.Env):
                     soc, remaining_time,  price, has_ev = 0, -1,  self.PRICE_VEC[self.t], 0
 
             price = self.PRICE_VEC[self.t]
-
-
-
-
         self.state = [soc, remaining_time, price, has_ev]
 
         if action_clipped > self.peak_load - 0.5:

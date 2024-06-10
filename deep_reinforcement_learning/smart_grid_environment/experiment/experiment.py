@@ -22,6 +22,7 @@ class Experiment:
         self.env_steps = []
         self.total_run_time = 0.0
         self.num_agents = params.get('n_agents', 4)
+        self.num_actions = params.get('n_actions', 10)
         self.agents = [i for i in range(self.num_agents)]
         self.episode_losses = {agent: [] for agent in self.agents}
         self.models = models
@@ -34,7 +35,7 @@ class Experiment:
         n_steps = 24
 
         socs = np.zeros((n_steps, num_agents))
-        actions = np.zeros((n_steps, num_agents))
+        actions = np.random.randint(low=-5, high=5, size=(n_steps, num_agents),)
         prices = np.zeros((n_steps))
         exists = np.zeros((n_steps, num_agents))
         remaining_times = np.zeros((n_steps, num_agents))
@@ -50,7 +51,7 @@ class Experiment:
             action = {}
             for agent in range(num_agents):
                 cur_state = torch.tensor(states[agent]).to(torch.float32)
-                action_agent = self.models[agent](cur_state)[0]
+                action_agent = torch.argmax(self.models[agent](cur_state)[:self.num_actions])
                 # action, _ = self.model.predict(obs)  # 1st step is based on reset()
                 actions[step, agent] = action_agent
                 action[agent] = action_agent.detach()
@@ -104,7 +105,7 @@ class Experiment:
             ax.set_xlabel('environment steps' if self.plot_train_samples else 'episodes')
             ax.set_ylabel('loss')
 
-            plt.savefig(f'{agent}.png')
+            plt.savefig(f'figures/{agent}.png')
             # dynamic plot update
             display.clear_output(wait=True)
             if update:

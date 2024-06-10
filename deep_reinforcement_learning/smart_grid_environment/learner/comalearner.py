@@ -1,20 +1,22 @@
 import torch as th
 import torch.nn.functional as F
+import math
 
 
 
 class COMALearner:
     """ COMA learner class for multi-agent reinforcement learning. """
 
-    def __init__(self, models, critic, params={}):
+    def __init__(self, models, critic, env, params={}):
         self.models = models  # List of agent models
         self.critic = critic  # Centralized critic
         self.n_actions = params.get('n_actions', 10)
         self.gamma = params.get('gamma', 0.99)
-        self.optimizers = [th.optim.Adam(model.parameters(), lr=params.get('lr', 5E-4)) for model in models]
-        self.critic_optimizer = th.optim.Adam(self.critic.parameters(), lr=params.get('critic_lr', 5E-4))
+        self.optimizers = [th.optim.Adam(model.parameters(), lr=params.get('lr', 1E-3)) for model in models]
+        self.critic_optimizer = th.optim.Adam(self.critic.parameters(), lr=params.get('critic_lr', 1E-3))
         self.criterion = th.nn.MSELoss()
         self.grad_norm_clip = params.get('grad_norm_clip', 10)
+        self.env = env
 
     def critic_values(self, states, actions):
         """ Returns the Q-values from the critic network. """
@@ -41,6 +43,9 @@ class COMALearner:
         advantage = q_values - baseline
         return advantage
 
+    def critic_reward(self, rewards, actions):
+        return rewards - self.env.over_peak_load_constant * max(0, th.sum(th.abs_(actions)) - self.env.peak_load)
+
     def train_critic(self, batch):
         """ Trains the critic network. """
         actions = th.cat([batch[a]['actions'] for a in batch.keys()], dim=1)
@@ -50,14 +55,14 @@ class COMALearner:
         states = th.cat([batch[a]['states'] for a in batch.keys()], dim=1)
 
         with th.no_grad():
-            target_q_values = rewards + self.gamma * (~dones * self.critic_values(next_states, actions))
+            target_q_values = self.critic_reward(rewards, actions) + self.gamma * (~dones * self.critic_values(next_states, actions))
 
         q_values = self.critic_values(states, actions).expand(target_q_values.shape)
         critic_loss = self.criterion(q_values, target_q_values.detach())
 
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
-        th.nn.utils.clip_grad_norm_(self.critic.parameters(), self.grad_norm_clip)
+        # th.nn.utils.clip_grad_norm_(self.critic.parameters(), self.grad_norm_clip)
         self.critic_optimizer.step()
 
         return critic_loss.item()

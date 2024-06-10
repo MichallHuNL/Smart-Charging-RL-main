@@ -38,12 +38,14 @@ class SmartChargingEnv(ParallelEnv):
     PERIODS = 24  # 24 hours
 
     # TODO: add peakload
-    def __init__(self, num_ports=4, leaving_soc=0.8, max_soc=1, max_time=24, max_price=10, penalty_factor=0.1,
-                 beta=0.01, test=False):
+    def __init__(self, num_ports=4, leaving_soc=0.8, max_soc=1, max_time=24, max_price=0.40, penalty_factor=0.1,
+                 beta=0.01, action_space_size=10, test=False):
         super().__init__()
 
         # Number of charging ports
         self.num_ports = num_ports
+
+        self.non_full_ev_cost_constant = 500
 
         # Minimum soc to not receive punishment
         self.leaving_soc = leaving_soc
@@ -63,14 +65,16 @@ class SmartChargingEnv(ParallelEnv):
         # Car battery decay rate (considering this but not too sure)
         self.beta = beta
 
-        self.n_actions = 10
+        self.n_actions = action_space_size
 
         # All the different ports defined according to the interface
         self.possible_agents = [i for i in range(self.num_ports)]
         self.agents = self.possible_agents[:]
 
+        self.action_numpy = np.arange(start=-5, stop=5, step=1)
+
         # Define action and observation spaces for each agent
-        self.action_spaces = {agent: Discrete(10, start=-5) for agent in
+        self.action_spaces = {agent: Discrete(self.n_actions, seed=self.rng) for agent in
                               self.possible_agents}
         self.observation_spaces = {
             agent: Box(
@@ -142,16 +146,20 @@ class SmartChargingEnv(ParallelEnv):
         for agent, action in actions.items():
             idx = self.get_index(agent)
             soc, remaining_time, price, has_ev = self.state[agent]
-            if self.test:
-                action_clipped = action
-            else:
-                action_clipped = action[0].item()
-            if action_clipped < -soc:
-                action_clipped = -soc
-            elif action_clipped > 1 - soc:
-                action_clipped = 1 - soc
+            if isinstance(action, list):
+                action = action[0]
+            elif isinstance(action, torch.Tensor):
+                action = action.item()
+
+            action = self.action_numpy[action]
+
+            if action < -soc:
+                action = -soc
+            elif action > 1 - soc:
+                action = 1 - soc
 
             if has_ev == 1:
+                action_clipped = np.clip(action, -soc, self.max_soc - soc)
                 # Apply action to SoC
                 soc += action_clipped  # Charging or discharging action
                 # soc = np.clip(soc, 0, self.max_soc)
@@ -197,7 +205,11 @@ class SmartChargingEnv(ParallelEnv):
             if agent not in rewards:
                 rewards[agent] = 0
 
-            self.state[agent] = np.array([soc, remaining_time, price, has_ev], dtype=np.float32)
+
+            try:
+                self.state[agent] = np.array([soc, remaining_time, price, has_ev], dtype=np.float32)
+            except ValueError:
+                print('Error here: ', [soc ,remaining_time, price, has_ev])
             infos[agent] = {}
 
         # Centralized reward adjustment for COMA

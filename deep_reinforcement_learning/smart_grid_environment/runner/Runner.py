@@ -56,6 +56,10 @@ class Runner:
     def _actions_to_dict(self, actions):
         d = {}
         for agent, action in enumerate(actions):
+            if isinstance(action, th.Tensor):
+                action = action.item()
+            elif isinstance(action, list):
+                action = action[0]
             d[agent] = [action]
 
         return d

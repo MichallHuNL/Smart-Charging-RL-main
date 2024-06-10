@@ -25,7 +25,7 @@ class ActorCriticExperiment(Experiment):
         self.controller = EpsilonGreedyController(controller=self.controller, params=params)
         self.runner = Runner(env, self.controller, params=params)
         if self.method == 'COMA':
-            self.learner = COMALearner(models, critic, params)
+            self.learner = COMALearner(models, critic, self.env, params)
         elif self.method == 'IQL':
             self.learners = [QLearner(model, idx, params) if learner is None else learner for (idx, model) in enumerate(models)]
 

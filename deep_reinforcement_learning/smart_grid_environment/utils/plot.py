@@ -78,8 +78,7 @@ def find_non_zero_intervals(arr):
 
 
 def make_plots(socs, actions, prices, exists, remaining_times, ends, schedule):
-    actions_clipped = np.clip(actions, -socs, 1 - socs)
-    actions_clipped = np.clip(actions_clipped, -0.5, 0.5)
+    actions_clipped = actions / 5
     rewards, total_rewards = get_rewards(socs, actions_clipped, prices, exists, remaining_times, ends)
     action_if_ev = get_action_if_ev(actions_clipped, exists)
 
