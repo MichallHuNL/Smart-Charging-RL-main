@@ -60,7 +60,7 @@ class Experiment:
             ax.set_xlabel('environment steps' if self.plot_train_samples else 'episodes')
             ax.set_ylabel('loss')
 
-            plt.savefig(f'plots/{agent}.png')
+            plt.savefig(f'{agent}.png')
             # dynamic plot update
             display.clear_output(wait=True)
             if update:
