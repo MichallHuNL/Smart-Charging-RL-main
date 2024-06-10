@@ -10,7 +10,7 @@ def calculate_schedule(schedule_shape, arrival_times, departure_times):
 
     for arrival, departure in zipped:
         for port_idx in range(schedule_shape[0]):
-            if schedule[port_idx, arrival] == 0:
+            if schedule[port_idx, arrival] == 0 and (arrival == 0 or schedule[port_idx, arrival - 1] == 0):
                 charging_time = departure - arrival
                 for time_left in reversed(range(charging_time + 1)):
                     if (arrival + charging_time - time_left) < schedule_shape[1]:
