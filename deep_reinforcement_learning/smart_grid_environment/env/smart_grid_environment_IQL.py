@@ -35,23 +35,23 @@ class IQLSmartChargingEnv(gymnasium.Env):
     B_MAX = float(40)  # in kWh, maximum battery capacity
     power_cost_constant = 1  # Constant for linear multiplication for cost of power
     iql_peak_load = 0.8
-    charging_reward_constant = 4  # Constant for linear multiplication for charging reward
-    non_full_ev_cost_constant = 15  # Cost for EV leaving without full charge
+    charging_reward_constant = 5  # Constant for linear multiplication for charging reward
+    non_full_ev_cost_constant = 20  # Cost for EV leaving without full charge
     over_peak_load_constant = 5  # Cost for going over peak load that is multiplied by load
     peak_load = 0.9  # Maximum allowed load
     rng = np.random.default_rng(seed=42)  # random number generator for price vector
     PRICE_VEC = np.array([62.04, 61.42, 58.14, 57.83, 58.30, 62.49, 71.58, 79.36, 86.02, 78.04, 66.51, 64.53, 47.55, 50.00,
                  63.20, 71.17, 78.28, 89.40, 93.73, 87.19, 77.49, 71.62, 70.06, 66.39]) / 10
-    schedule = np.array(
-        [[0., 5., 4., 3., 2., 1., 0., 3., 2., 1., 0., 3., 2., 1., 0., 3., 2., 1., 0., 0., 4., 3., 2., 1.],
-         [2., 1., 0., 0., 0., 1., 0., 0., 0., 0., 6., 5., 4., 3., 2., 1., 0., 0., 3., 2., 1., 0., 1., 0.],
-         [7., 6., 5., 4., 3., 2., 1., 0., 0., 4., 3., 2., 1., 0., 0., 0., 1., 0., 0., 0., 2., 1., 0., 0.],
-         [2., 1., 0., 0., 0., 0., 0., 0., 5., 4., 3., 2., 1., 0., 0., 0., 0., 2., 1., 0., 0., 7., 6., 5.]])
-    ends = np.array(
-        [[0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 0.],
-         [0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 1.],
-         [0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0.],
-         [0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0.]])
+    # schedule = np.array(
+    #     [[0., 5., 4., 3., 2., 1., 0., 3., 2., 1., 0., 3., 2., 1., 0., 3., 2., 1., 0., 0., 4., 3., 2., 1.],
+    #      [2., 1., 0., 0., 0., 1., 0., 0., 0., 0., 6., 5., 4., 3., 2., 1., 0., 0., 3., 2., 1., 0., 1., 0.],
+    #      [7., 6., 5., 4., 3., 2., 1., 0., 0., 4., 3., 2., 1., 0., 0., 0., 1., 0., 0., 0., 2., 1., 0., 0.],
+    #      [2., 1., 0., 0., 0., 0., 0., 0., 5., 4., 3., 2., 1., 0., 0., 0., 0., 2., 1., 0., 0., 7., 6., 5.]])
+    # ends = np.array(
+    #     [[0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 0.],
+    #      [0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 1.],
+    #      [0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0.],
+    #      [0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0.]])
 
     PERIODS = 24  # 24 hours
 
@@ -105,7 +105,7 @@ class IQLSmartChargingEnv(gymnasium.Env):
         arrivals = self.rng.integers(self.PERIODS, size=self.PERIODS)
         departures = self.rng.integers(arrivals, self.PERIODS + 1, size=self.PERIODS)
 
-        self.schedule, self.ends = calculate_schedule(self.schedule.shape, arrivals, departures)
+        self.schedule, self.ends = calculate_schedule((4, 24), arrivals, departures)
 
         # print("schedule: ", self.schedule, flush=True)
 
@@ -204,6 +204,11 @@ class IQLSmartChargingEnv(gymnasium.Env):
         return self.state()
 
 
+def get_actions_clipped(actions, socs, exists, p_max):
+    actions_clipped = np.clip(actions, -socs / p_max , (1 - socs) / p_max)
+    actions_clipped[exists != 1] = 0
+    return actions_clipped
+
 
 
 # Example of creating the environment and running a step
@@ -217,7 +222,8 @@ def get_info():
     prices = np.zeros((n_steps))
     exists = np.zeros((n_steps, num_agents))
     remaining_times = np.zeros((n_steps, num_agents))
-
+    schedule = np.zeros((num_agents, n_steps))
+    ends = np.zeros((num_agents, n_steps))
     for i in range(num_agents):
 
         obs = envs[i].reset()[0]
@@ -225,11 +231,15 @@ def get_info():
         prices[0] = obs[2]
         exists[0, i] = obs[3]
         remaining_times[0, i] = obs[1]
+        schedule[i, :] = envs[i].schedule[i, :]
+        ends[i, :] = envs[i].ends[i, :]
+
 
         for step in range(n_steps):
             action, _ = models[i].predict(obs)  # 1st step is based on reset()
             actions[step, i] = action
             obs, reward, done, _, info = envs[i].step(action)
+            env = envs[i]
 
             if step + 1 < n_steps:
                 socs[step + 1, i] = obs[0]
@@ -237,8 +247,13 @@ def get_info():
                 exists[step + 1, i] = obs[3]
                 remaining_times[step + 1, i] = obs[1]
 
+    actions_clipped = get_actions_clipped(actions, socs, exists, envs[i].P_MAX)
+    # print('this1: ', schedule)
+    # print('this2: ', np.transpose(np.array(envs[0].ends)))
+    # print('this3: ', exists)
+    ends = ends.T
 
-    make_plots(socs, actions, prices, exists, remaining_times, np.transpose(np.array(envs[0].ends)), np.array(envs[0].schedule))
+    make_plots(socs, actions_clipped, prices, exists, remaining_times, ends, schedule)
 
 
 

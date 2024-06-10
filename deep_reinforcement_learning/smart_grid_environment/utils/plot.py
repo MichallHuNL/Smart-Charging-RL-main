@@ -39,17 +39,14 @@ def get_rewards(socs, actions, prices, exists, remaining_times, ends):
     return rewards, total_rewards
 
 
-# def get_action_if_ev(actions, exists):
-#     action_if_ev = actions
-#     action_if_ev[exists != 1] = 0
-#     return action_if_ev
+
 
 def get_socs_when_leave(socs, actions, ends):
     socs_plus_leaves = socs
     for i in range(socs.shape[0]):
         for j in range(socs.shape[1]):
             if ends[i, j] == 1:
-                socs_plus_leaves[i, j] = socs[i-1, j] + actions[i-1, j]
+                socs_plus_leaves[i, j] = socs[i-1, j] + actions[i-1, j] * p_max
     return socs_plus_leaves
 
 
@@ -73,16 +70,14 @@ def find_non_zero_intervals(row):
 
 
 # socs - numpy array of size (steps, num_agents)
-# actions - numpy array of size (steps, num_agents)
+# actions - numpy array of size (steps, num_agents) clipped
 # prices - numpy array of size (steps)
 # exist - numpy array of size (steps, num_agents)
 # remaining_times - numpy array of size (steps, num_agents)
 # ends - numpy array of size (steps, num_agents)
-# schedule - numpy array of size (steps, num_agents)
+# schedule - numpy array of size (num_agents, steps)
 def make_plots(socs, actions, prices, exists, remaining_times, ends, schedule):
-    # actions_clipped = actions * p_max
-    # actions_clipped = np.clip(actions_clipped, -socs, 1 - socs)
-    # actions_clipped = np.clip(actions_clipped, -1, 0.5)
+
     rewards, total_rewards = get_rewards(socs, actions, prices, exists, remaining_times, ends)
     socs = get_socs_when_leave(socs, actions, ends)
     print(rewards)
@@ -102,9 +97,21 @@ def make_plots(socs, actions, prices, exists, remaining_times, ends, schedule):
 
         # plt.subplot(2,2, i + 1)
         fig1, ax1 = plt.subplots()
+        x = np.arange(0, len(actions))
+        y = socs[:, i]
 
         # plot soc_rl vs soc_exact
-        plt.plot(np.arange(0, len(socs), 1), socs[:, i], label=f'soc-agent{i}')
+        for j, (start, end) in enumerate(intervals[i]):
+            end = end + 1
+            mask = (x >= start) & (x <= end)
+            if j == 0:
+                ax1.plot(x[mask], y[mask], color = 'blue', label = 'soc')
+            else:
+                ax1.plot(x[mask], y[mask], color='blue')
+            ax1.set_xlim(start, end)
+            ax1.set_xticks(np.linspace(start, end, 5))
+            ax1.spines['right'].set_visible(False)
+            ax1.spines['left'].set_visible(False)
 
 
         plt.bar(np.arange(0, len(actions), 1), actions[:, i], label=f'action-agent{i}')
