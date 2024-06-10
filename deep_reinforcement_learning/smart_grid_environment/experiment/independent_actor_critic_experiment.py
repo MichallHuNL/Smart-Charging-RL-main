@@ -12,7 +12,7 @@ from ..learner.comalearner import COMALearner
 
 
 class ActorCriticExperiment(Experiment):
-    def __init__(self, params: dict, models, env: ParallelEnv, critic, learner=None, **kwargs):
+    def __init__(self, params: dict, models, env: ParallelEnv, critic=None, learner=None, **kwargs):
         super().__init__(params, models, **kwargs)
         self.max_episodes = params.get('max_episodes', int(1E6))
         self.max_steps = params.get('max_steps', int(1E9))

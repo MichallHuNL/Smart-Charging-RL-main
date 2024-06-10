@@ -10,12 +10,9 @@ class SmartChargingEnv(ParallelEnv):
     metadata = {"render.modes": ["human"], "name": "neighborhood_charging_env"}
 
     # Define constants for clearer code
-    ETA = float(0.9)  # charging efficiency
-    P_MAX = float(0.5)  # maximum charging power of car
-    DELTA_T = float(1)  # 1 hour
-    B_MAX = float(40)  # in kWh, maximum battery capacity
-    power_cost_constant = 0.5  # Constant for linear multiplication for cost of power
-    charging_reward_constant = 5  # Constant for linear multiplication for charging reward
+    P_MAX = float(0.5)  # maximum charging power of car in % of soc
+    power_cost_constant = 1  # Constant for linear multiplication for cost of power
+    charging_reward_constant = 0.1  # Constant for linear multiplication for charging reward
     non_full_ev_cost_constant = 20  # Cost for EV leaving without full charge
     over_peak_load_constant = 5  # Cost for going over peak load that is multiplied by load
     peak_load = 1.5  # Maximum allowed load
@@ -38,8 +35,8 @@ class SmartChargingEnv(ParallelEnv):
     PERIODS = 24  # 24 hours
 
     # TODO: add peakload
-    def __init__(self, num_ports=4, leaving_soc=0.8, max_soc=1, max_time=24, max_price=10, penalty_factor=0.1,
-                 beta=0.01, test=False):
+    def __init__(self, num_ports=4, leaving_soc=0.8, max_soc=1, max_time=24, max_price=0.40, penalty_factor=0.1,
+                 beta=0.01, action_space_size=10, test=False):
         super().__init__()
 
         # Number of charging ports
@@ -63,14 +60,14 @@ class SmartChargingEnv(ParallelEnv):
         # Car battery decay rate (considering this but not too sure)
         self.beta = beta
 
-        self.n_actions = 10
+        self.n_actions = action_space_size
 
         # All the different ports defined according to the interface
         self.possible_agents = [i for i in range(self.num_ports)]
         self.agents = self.possible_agents[:]
 
         # Define action and observation spaces for each agent
-        self.action_spaces = {agent: Discrete(10, start=-5) for agent in
+        self.action_spaces = {agent: Discrete(self.n_actions, seed=self.rng) for agent in
                               self.possible_agents}
         self.observation_spaces = {
             agent: Box(
@@ -142,19 +139,16 @@ class SmartChargingEnv(ParallelEnv):
         for agent, action in actions.items():
             idx = self.get_index(agent)
             soc, remaining_time, price, has_ev = self.state[agent]
-            if self.test:
-                action_clipped = action
-            else:
-                action_clipped = action[0].item()
-            if action_clipped < -soc:
-                action_clipped = -soc
-            elif action_clipped > 1 - soc:
-                action_clipped = 1 - soc
 
             if has_ev == 1:
+                if not self.test:
+                    action = action[0].item()
+
+                action_clipped = ((float(action) / self.n_actions) * 2.0 - 1.0) * self.P_MAX
+
+                action_clipped = np.clip(action_clipped, -soc, self.max_soc - soc)
                 # Apply action to SoC
                 soc += action_clipped  # Charging or discharging action
-                # soc = np.clip(soc, 0, self.max_soc)
 
                 # Calculate reward
                 cost = price * action_clipped * self.power_cost_constant
