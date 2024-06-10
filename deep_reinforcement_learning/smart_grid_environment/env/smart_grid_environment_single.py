@@ -4,7 +4,7 @@ from gymnasium.spaces import Box
 import gymnasium
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3 import PPO
-from deep_reinforcement_learning.smart_grid_environment.utils.plot import make_plots
+from deep_reinforcement_learning.smart_grid_environment.utils.plot import make_plots, get_actions_clipped
 from deep_reinforcement_learning.smart_grid_environment.utils.schedule import calculate_schedule
 
 
@@ -258,8 +258,10 @@ def get_info():
             exists[step + 1, :] = [obs[(i * 4) + 3] for i in range(num_agents)]
             remaining_times[step + 1, :] = [obs[(i * 4) + 1] for i in range(num_agents)]
 
+    actions_clipped = get_actions_clipped(actions, socs, exists, env.P_MAX)
 
-    make_plots(socs, actions, prices, exists, remaining_times, np.transpose(np.array(env.ends)), np.array(env.schedule))
+
+    make_plots(socs, actions_clipped, prices, exists, remaining_times, np.transpose(np.array(env.ends)), np.array(env.schedule))
 
 
 
@@ -284,7 +286,7 @@ if __name__ == '__main__':
     print("Infos:", infos)
 
     # training
-    n_timesteps = 10  # 1 mil
+    n_timesteps = 100000  # 1 mil
     n_runs = 1  # 10 trial runs
 
     # instatiate path

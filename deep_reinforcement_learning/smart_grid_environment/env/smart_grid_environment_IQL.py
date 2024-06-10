@@ -5,7 +5,7 @@ import gymnasium
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3 import PPO
 from matplotlib import pyplot as plt
-from deep_reinforcement_learning.smart_grid_environment.utils.plot import make_plots
+from deep_reinforcement_learning.smart_grid_environment.utils.plot import make_plots, get_actions_clipped
 from deep_reinforcement_learning.smart_grid_environment.utils.schedule import calculate_schedule
 
 
@@ -203,11 +203,6 @@ class IQLSmartChargingEnv(gymnasium.Env):
     def state(self):
         return self.state()
 
-
-def get_actions_clipped(actions, socs, exists, p_max):
-    actions_clipped = np.clip(actions, -socs / p_max , (1 - socs) / p_max)
-    actions_clipped[exists != 1] = 0
-    return actions_clipped
 
 
 

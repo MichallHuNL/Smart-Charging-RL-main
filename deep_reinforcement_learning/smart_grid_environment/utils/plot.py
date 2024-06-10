@@ -9,6 +9,12 @@ over_peak_load_constant = 5
 peak_load = 1.5
 p_max = 0.5
 
+def get_actions_clipped(actions, socs, exists, p_max):
+    actions_clipped = np.clip(actions, -socs / p_max , (1 - socs) / p_max)
+    actions_clipped[exists != 1] = 0
+    return actions_clipped
+
+
 
 def calculate_reward(soc, action, price, exists, end):
     if exists:
@@ -114,7 +120,7 @@ def make_plots(socs, actions, prices, exists, remaining_times, ends, schedule):
             ax1.spines['left'].set_visible(False)
 
 
-        plt.bar(np.arange(0, len(actions), 1), actions[:, i], label=f'action-agent{i}')
+        plt.bar(np.arange(0, len(actions), 1), actions[:, i], label=f'action-agent{i}', align='edge')
 
         # set opacity
         plt.setp(plt.gca().patches, alpha=0.3)
