@@ -39,10 +39,10 @@ def get_rewards(socs, actions, prices, exists, remaining_times, ends):
     return rewards, total_rewards
 
 
-# def get_action_if_ev(actions, exists):
-#     action_if_ev = actions
-#     action_if_ev[exists != 1] = 0
-#     return action_if_ev
+def get_action_if_ev(actions, exists):
+    action_if_ev = actions
+    action_if_ev[exists != 1] = 0
+    return action_if_ev
 
 def get_socs_when_leave(socs, actions, ends):
     socs_plus_leaves = socs
@@ -83,16 +83,16 @@ def make_plots(socs, actions, prices, exists, remaining_times, ends, schedule):
     # actions_clipped = actions * p_max
     # actions_clipped = np.clip(actions_clipped, -socs, 1 - socs)
     # actions_clipped = np.clip(actions_clipped, -1, 0.5)
+    actions = get_action_if_ev(actions, exists)
     rewards, total_rewards = get_rewards(socs, actions, prices, exists, remaining_times, ends)
-    socs = get_socs_when_leave(socs, actions, ends)
-    print(rewards)
-    print(total_rewards)
-    # action_if_ev = get_action_if_ev(actions, exists)
+    # socs = get_socs_when_leave(socs, actions, ends)
+    print("rewards", rewards)
+    print("total_rewards", total_rewards)
     # print(action_if_ev)
 
     # Get intervals for each row
     intervals = [find_non_zero_intervals(row) for row in schedule]
-    print(intervals)
+    print("intervals", intervals)
 
 
 
@@ -106,7 +106,7 @@ def make_plots(socs, actions, prices, exists, remaining_times, ends, schedule):
         # plot soc_rl vs soc_exact
         plt.plot(np.arange(0, len(socs), 1), socs[:, i], label=f'soc-agent{i}')
 
-
+        print("actions: ", actions[:, i], flush=True)
         plt.bar(np.arange(0, len(actions), 1), actions[:, i], label=f'action-agent{i}')
 
         # set opacity
@@ -140,6 +140,7 @@ def make_plots(socs, actions, prices, exists, remaining_times, ends, schedule):
         plt.tight_layout()
         # plt.show()
         plt.savefig(f'plots/agent_{i}.png')
+        plt.close(fig1)
 
     title = 'Total rewards'
 
@@ -179,3 +180,4 @@ def make_plots(socs, actions, prices, exists, remaining_times, ends, schedule):
 
     # plt.show()
     plt.savefig(f'plots/total_rewards.png')
+    plt.close(fig1)

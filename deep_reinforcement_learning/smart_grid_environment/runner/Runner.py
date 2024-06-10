@@ -6,6 +6,7 @@ import numpy as np
 from pettingzoo import ParallelEnv
 
 from ..utils.TransitionBatch import TransitionBatch
+from ..utils.plot import make_plots
 
 
 class Runner:
@@ -21,7 +22,7 @@ class Runner:
 
         # Observations are equal to the state for the next state most likely
         self.state_shape = self.env.observation_space(self.env.agents[0]).shape
-        self.sum_rewards = 0
+        self.sum_rewards = 0.0
         self.state = None
         self.time = 0
         self._next_step()
@@ -70,7 +71,7 @@ class Runner:
         """Switch to the next step for the runner"""
         self.time = 0 if done else self.time + 1
         if done:
-            self.sum_rewards = 0
+            self.sum_rewards = 0.0
             self.state, _ = self.env.reset()
         else:
             self.state = next_state
@@ -119,3 +120,34 @@ class Runner:
 
     def run_episode(self, transition_buffer=None, trim=True, return_dict=None):
         return self.run(0, transition_buffer, trim, return_dict)
+
+    def plot(self):
+        num_agents = self.n_agents
+        n_steps = self.env.PERIODS
+
+        socs = np.zeros((n_steps, num_agents))
+        actions = np.zeros((n_steps, num_agents))
+        prices = np.zeros((n_steps))
+        exists = np.zeros((n_steps, num_agents))
+        remaining_times = np.zeros((n_steps, num_agents))
+
+        obs = self.env.reset()[0]
+        states = [obs[i] for i in range(num_agents)]
+        socs[0, :] = [state[0] for state in states]
+        prices[0] = states[0][2]
+        exists[0, :] = [state[3] for state in states]
+        remaining_times[0, :] = [state[1] for state in states]
+
+        for step in range(n_steps):
+            action = self.controller.controller.choose(self.state)
+            reward, obs, terminal, done = self._make_step(self._actions_to_dict(action))
+
+            actions[step] = (action / (self.env.n_actions // 2)) - 1.0
+            if step + 1 < n_steps:
+                states = [obs[i] for i in range(num_agents)]
+                socs[step + 1, :] = [state[0] for state in states]
+                prices[step + 1] = states[0][2]
+                exists[step + 1, :] = [state[3] for state in states]
+                remaining_times[step + 1, :] = [state[1] for state in states]
+        make_plots(socs, actions, prices, exists, remaining_times, np.transpose(np.array(self.env.ends)),
+                   np.array(self.env.schedule))

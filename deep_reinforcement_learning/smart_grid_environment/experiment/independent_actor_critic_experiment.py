@@ -74,3 +74,9 @@ class ActorCriticExperiment(Experiment):
                            np.std(self.episode_returns[-100:]), np.mean(self.episode_lengths[-100:]),
                            [f'agent: {agent}, loss: {np.mean(self.episode_losses[agent][-100:])}' for agent in
                             self.agents]))
+
+    def plot_training(self, update=False):
+        window = max(int(len(self.episode_returns) / 50), 10)
+        if any([len(self.episode_losses[agent]) < window + 2 for agent in self.agents]): return
+        super().plot_training(update)
+        self.runner.plot()

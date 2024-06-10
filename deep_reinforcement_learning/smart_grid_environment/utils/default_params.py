@@ -23,5 +23,5 @@ def default_params():
             'gamma': 0.99,                    # discount factor gamma
             'batch_size': 2048,               # number of transitions in a mini-batch
             'grad_norm_clip': 1,              # gradent clipping if grad norm is larger than this
-            'action_space_size': 20,          # Size of discrete action space
+            'n_actions': 10,                  # Size of discrete action space
            }

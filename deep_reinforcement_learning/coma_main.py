@@ -11,9 +11,9 @@ if __name__ == '__main__':
     params = default_params()
     params['max_episode_length'] = 200
     params['method'] = 'COMA'
-    params['n_actions'] = 10
+    params['n_actions'] = 3
     num_agents = params.get('n_agents', 4)
-    env = SmartChargingEnv(num_ports=num_agents)
+    env = SmartChargingEnv(num_ports=num_agents, action_space_size=params.get('n_actions'))
     n_actions, state_dim = env.n_actions, env.observation_space(env.agents[0]).shape[0]
     # The model has n_action policy heads and one value head
     models = [th.nn.Sequential(th.nn.Linear(state_dim, 128), th.nn.ReLU(),
