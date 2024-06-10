@@ -31,9 +31,9 @@ class SingleSmartChargingEnv(gymnasium.Env):
     P_MAX = 0.5  # maximum charging power of car
     DELTA_T = float(1)  # 1 hour
     B_MAX = float(40)  # in kWh, maximum battery capacity
-    power_cost_constant = 0.5 # Constant for linear multiplication for cost of power
-    charging_reward_constant = 5 # Constant for linear multiplication for charging reward
-    non_full_ev_cost_constant = 20 # Cost for EV leaving without full charge
+    power_cost_constant = 1 # Constant for linear multiplication for cost of power
+    charging_reward_constant = 4 # Constant for linear multiplication for charging reward
+    non_full_ev_cost_constant = 15 # Cost for EV leaving without full charge
     over_peak_load_constant = 5 # Cost for going over peak load that is multiplied by load
     peak_load = 0.9 # Maximum allowed load
     rng = np.random.default_rng(seed=42)  # random number generator for price vector

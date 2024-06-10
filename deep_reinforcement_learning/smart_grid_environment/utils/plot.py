@@ -3,22 +3,17 @@ from matplotlib import pyplot as plt
 
 
 power_cost_constant = 1
-charging_reward_constant = 5
-non_full_ev_cost_constant = 20
+charging_reward_constant = 4
+non_full_ev_cost_constant = 15
 over_peak_load_constant = 5
 peak_load = 1.5
 p_max = 0.5
 
-# power_cost_constant = 0.5  # Constant for linear multiplication for cost of power
-# charging_reward_constant = 5  # Constant for linear multiplication for charging reward
-# non_full_ev_cost_constant = 20  # Cost for EV leaving without full charge
-# over_peak_load_constant = 5  # Cost for going over peak load that is multiplied by load
-# peak_load = 0.9  # Maximum allowed load
 
 def calculate_reward(soc, action, price, exists, end):
     if exists:
         # Cost of paying for electricity
-        cost = price * action * p_max
+        cost = price * action
         reward = -cost * power_cost_constant
 
         # Reward for charging the vehicle
@@ -54,7 +49,7 @@ def get_socs_when_leave(socs, actions, ends):
     for i in range(socs.shape[0]):
         for j in range(socs.shape[1]):
             if ends[i, j] == 1:
-                socs_plus_leaves[i, j] = socs[i-1, j] + actions[i-1, j] * p_max
+                socs_plus_leaves[i, j] = socs[i-1, j] + actions[i-1, j]
     return socs_plus_leaves
 
 
@@ -85,7 +80,8 @@ def find_non_zero_intervals(arr):
 # ends - numpy array of size (steps, num_agents)
 # schedule - numpy array of size (steps, num_agents)
 def make_plots(socs, actions, prices, exists, remaining_times, ends, schedule):
-    actions_clipped = np.clip(actions, -socs, 1 - socs)
+    actions_clipped = actions * p_max
+    actions_clipped = np.clip(actions_clipped, -socs, 1 - socs)
     # actions_clipped = np.clip(actions_clipped, -1, 0.5)
     rewards, total_rewards = get_rewards(socs, actions_clipped, prices, exists, remaining_times, ends)
     socs = get_socs_when_leave(socs, actions_clipped, ends)
