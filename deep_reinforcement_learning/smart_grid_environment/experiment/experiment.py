@@ -40,7 +40,7 @@ class Experiment:
         remaining_times = np.zeros((n_steps, num_agents))
 
         obs = self.env.reset()[0]
-        states = [obs[f'port_{i}'] for i in range(num_agents)]
+        states = [obs[i] for i in range(num_agents)]
         socs[0, :] = [state[0] for state in states]
         prices[0] = states[0][2]
         exists[0, :] = [state[3] for state in states]
@@ -53,16 +53,15 @@ class Experiment:
                 action_agent = self.models[agent](cur_state)[0]
                 # action, _ = self.model.predict(obs)  # 1st step is based on reset()
                 actions[step, agent] = action_agent
-                action[f'port_{agent}'] = action_agent.detach()
+                action[agent] = action_agent.detach()
             obs, reward, done, _, info = self.env.step(action)
 
             if step + 1 < n_steps:
-                states = [obs[f'port_{i}'] for i in range(num_agents)]
+                states = [obs[i] for i in range(num_agents)]
                 socs[step + 1, :] = [state[0] for state in states]
                 prices[step + 1] = states[0][2]
                 exists[step + 1, :] = [state[3] for state in states]
                 remaining_times[step + 1, :] = [state[1] for state in states]
-        print(actions)
         make_plots(socs, actions, prices, exists, remaining_times, np.transpose(np.array(self.env.ends)),
                    np.array(self.env.schedule))
 

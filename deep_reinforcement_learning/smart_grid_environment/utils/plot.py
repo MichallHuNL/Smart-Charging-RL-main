@@ -7,6 +7,7 @@ charging_reward_constant = 5
 non_full_ev_cost_constant = 20
 over_peak_load_constant = 5
 peak_load = 1.5
+debug = False
 
 def calculate_reward(action, price, exists, end):
     if exists:
@@ -80,17 +81,16 @@ def make_plots(socs, actions, prices, exists, remaining_times, ends, schedule):
     actions_clipped = np.clip(actions, -socs, 1 - socs)
     actions_clipped = np.clip(actions_clipped, -0.5, 0.5)
     rewards, total_rewards = get_rewards(socs, actions_clipped, prices, exists, remaining_times, ends)
-    print(rewards)
-    print(total_rewards)
     action_if_ev = get_action_if_ev(actions_clipped, exists)
-    print(action_if_ev)
 
     # Get intervals for each row
     intervals = [find_non_zero_intervals(row) for row in schedule]
-    print(intervals)
-
-
-
+    if debug:
+        print('Episode plotting')
+        print('Rewards: ', rewards)
+        print('Total Rewards: ', total_rewards)
+        print('Action if EV: ', action_if_ev)
+        print('Intervals: ', intervals)
 
     for i in range(socs.shape[1]):
         title = f'Action, state of charge and prices for agent {i}'

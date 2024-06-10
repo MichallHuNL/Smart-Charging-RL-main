@@ -70,7 +70,7 @@ class SmartChargingEnv(ParallelEnv):
         self.agents = self.possible_agents[:]
 
         # Define action and observation spaces for each agent
-        self.action_spaces = {agent: Box(low=-self.P_MAX, high=self.P_MAX, shape=(1,), dtype=np.float32) for agent in
+        self.action_spaces = {agent: Discrete(10, start=-5) for agent in
                               self.possible_agents}
         self.observation_spaces = {
             agent: Box(

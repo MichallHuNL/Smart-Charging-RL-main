@@ -57,6 +57,10 @@ class LogitsController(MultiController):
                 mx = observations[port] if precomputed and precomputed[i] else self.models[i](
                     self.sanitize_inputs(observations[port]))[:, :self.num_actions]
                 probabilities[i] = th.nn.functional.softmax(mx, dim=-1)
+                if th.isnan(probabilities).any():
+                    print('Nan Found for following probabilities: ', probabilities)
+                    print('Observations: ', observations)
+                    print('MX: ', mx)
         finally:
             self.lock.release()
         return probabilities
