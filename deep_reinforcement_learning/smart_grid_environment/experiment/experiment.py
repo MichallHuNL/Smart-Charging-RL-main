@@ -25,7 +25,7 @@ class Experiment:
         self.agents = [i for i in range(self.num_agents)]
         self.episode_losses = {agent: [] for agent in self.agents}
         self.models = models
-        self.env = SmartChargingEnv(num_ports=4, test = True )
+        self.env = SmartChargingEnv(num_ports=self.num_agents, test=True)
         self.plot()
 
 

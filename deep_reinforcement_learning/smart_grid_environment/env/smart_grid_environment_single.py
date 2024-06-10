@@ -4,8 +4,8 @@ from gymnasium.spaces import Box
 import gymnasium
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3 import PPO
-from matplotlib import pyplot as plt
 from deep_reinforcement_learning.smart_grid_environment.utils.plot import make_plots
+from deep_reinforcement_learning.smart_grid_environment.utils.schedule import calculate_schedule
 
 
 def create_car_schedule(number_cars, time):
@@ -31,9 +31,9 @@ class SingleSmartChargingEnv(gymnasium.Env):
     P_MAX = 0.5  # maximum charging power of car
     DELTA_T = float(1)  # 1 hour
     B_MAX = float(40)  # in kWh, maximum battery capacity
-    power_cost_constant = 0.5 # Constant for linear multiplication for cost of power
-    charging_reward_constant = 5 # Constant for linear multiplication for charging reward
-    non_full_ev_cost_constant = 20 # Cost for EV leaving without full charge
+    power_cost_constant = 1 # Constant for linear multiplication for cost of power
+    charging_reward_constant = 4 # Constant for linear multiplication for charging reward
+    non_full_ev_cost_constant = 15 # Cost for EV leaving without full charge
     over_peak_load_constant = 5 # Cost for going over peak load that is multiplied by load
     peak_load = 0.9 # Maximum allowed load
     rng = np.random.default_rng(seed=42)  # random number generator for price vector
@@ -49,11 +49,13 @@ class SingleSmartChargingEnv(gymnasium.Env):
                 [0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0.]])
     PERIODS = 24  # 24 hours
 
-    def __init__(self, num_ports=4, max_soc=1, max_time=24, max_price=10, penalty_factor=0.1, beta=0.01):
+    def __init__(self, num_ports=4, leaving_soc = 0.8, max_soc=1, max_time=24, max_price=10, penalty_factor=0.1, beta=0.01):
         super().__init__()
 
         # Number of charging ports
         self.num_ports = num_ports
+
+        self.leaving_soc = leaving_soc
 
         # Maximum SOC of an EV arriving
         self.max_soc = max_soc
@@ -77,7 +79,7 @@ class SingleSmartChargingEnv(gymnasium.Env):
         self.agents = self.possible_agents[:]
 
         # Define action and observation spaces for each agent
-        self.action_space = Box(low=-self.P_MAX, high=self.P_MAX, shape=(self.num_ports,), dtype=np.float32)
+        self.action_space = Box(low=-1, high=1, shape=(self.num_ports,), dtype=np.float32)
 
         low = []
         self.observation_space = Box(
@@ -94,6 +96,16 @@ class SingleSmartChargingEnv(gymnasium.Env):
 
         self.t = 0
         self.agents = self.possible_agents[:]
+
+        # TODO: get price based on real data
+        self.PRICE_VEC = np.random.rand(*self.PRICE_VEC.shape) * self.max_price
+
+        arrivals = self.rng.integers(self.PERIODS, size=self.PERIODS)
+        departures = self.rng.integers(arrivals, self.PERIODS + 1, size=self.PERIODS)
+
+        self.schedule, self.ends = calculate_schedule(self.schedule.shape, arrivals, departures)
+
+        # print("schedule: ", self.schedule, flush=True)
         electricity_price = self.PRICE_VEC[self.t]
         self.state = []
 
@@ -124,7 +136,7 @@ class SingleSmartChargingEnv(gymnasium.Env):
             soc, remaining_time, price, has_ev = self.state[idx_agent * 4: (idx_agent + 1) * 4]
             agent = self.possible_agents[idx_agent]
 
-            action_clipped = action
+            action_clipped = action * self.P_MAX
             if action_clipped < -soc:
                 action_clipped = -soc
             elif action_clipped > 1-soc:
@@ -133,9 +145,8 @@ class SingleSmartChargingEnv(gymnasium.Env):
             if has_ev == 1:
                 # Apply action to SoC
                 soc += action_clipped  # Charging or discharging action
-                if soc < 0 or soc> self.max_soc:
-                    a = 2
-                soc = np.clip(soc, 0, self.max_soc)
+
+                # soc = np.clip(soc, 0, self.max_soc)
 
                 # Calculate reward
                 cost = price * action_clipped
@@ -147,7 +158,7 @@ class SingleSmartChargingEnv(gymnasium.Env):
 
                 remaining_time -= 1
 
-                if self.t < len(self.PRICE_VEC) and self.ends[idx_agent, self.t] == 1:
+                if soc < self.leaving_soc and self.t < len(self.PRICE_VEC) and self.ends[idx_agent, self.t] == 1:
                     total_reward -= self.non_full_ev_cost_constant  # Penalty for car leaving without full charge
 
                 total_action += action_clipped
@@ -273,7 +284,7 @@ if __name__ == '__main__':
     print("Infos:", infos)
 
     # training
-    n_timesteps = 1000000  # 1 mil
+    n_timesteps = 10  # 1 mil
     n_runs = 1  # 10 trial runs
 
     # instatiate path
