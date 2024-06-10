@@ -2,6 +2,10 @@ import numpy as np
 import pylab as pl
 from IPython import display
 from matplotlib import pyplot as plt
+import torch
+
+from deep_reinforcement_learning.smart_grid_environment.env.smart_grid_environment import SmartChargingEnv
+from deep_reinforcement_learning.smart_grid_environment.utils.plot import make_plots
 
 
 class Experiment:
@@ -20,6 +24,47 @@ class Experiment:
         self.num_agents = params.get('n_agents', 4)
         self.agents = [i for i in range(self.num_agents)]
         self.episode_losses = {agent: [] for agent in self.agents}
+        self.models = models
+        self.env = SmartChargingEnv(num_ports=4, test = True )
+        self.plot()
+
+
+    def plot(self):
+        num_agents = 4
+        n_steps = 24
+
+        socs = np.zeros((n_steps, num_agents))
+        actions = np.zeros((n_steps, num_agents))
+        prices = np.zeros((n_steps))
+        exists = np.zeros((n_steps, num_agents))
+        remaining_times = np.zeros((n_steps, num_agents))
+
+        obs = self.env.reset()[0]
+        states = [obs[f'port_{i}'] for i in range(num_agents)]
+        socs[0, :] = [state[0] for state in states]
+        prices[0] = states[0][2]
+        exists[0, :] = [state[3] for state in states]
+        remaining_times[0, :] = [state[1] for state in states]
+
+        for step in range(n_steps):
+            action = {}
+            for agent in range(num_agents):
+                cur_state = torch.tensor(states[agent]).to(torch.float32)
+                action_agent = self.models[agent](cur_state)[0]
+                # action, _ = self.model.predict(obs)  # 1st step is based on reset()
+                actions[step, agent] = action_agent
+                action[f'port_{agent}'] = action_agent.detach()
+            obs, reward, done, _, info = self.env.step(action)
+
+            if step + 1 < n_steps:
+                states = [obs[f'port_{i}'] for i in range(num_agents)]
+                socs[step + 1, :] = [state[0] for state in states]
+                prices[step + 1] = states[0][2]
+                exists[step + 1, :] = [state[3] for state in states]
+                remaining_times[step + 1, :] = [state[1] for state in states]
+        print(actions)
+        make_plots(socs, actions, prices, exists, remaining_times, np.transpose(np.array(self.env.ends)),
+                   np.array(self.env.schedule))
 
     def plot_training(self, update=False):
         """ Plots logged training results. Use "update=True" if the plot is continuously updated
@@ -65,6 +110,7 @@ class Experiment:
             display.clear_output(wait=True)
             if update:
                 display.display(pl.gcf())
+        self.plot()
 
     def close(self):
         """ Frees all allocated runtime ressources, but allows to continue the experiment later.

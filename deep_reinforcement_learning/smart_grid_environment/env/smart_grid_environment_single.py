@@ -4,6 +4,8 @@ from gymnasium.spaces import Box
 import gymnasium
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3 import PPO
+from matplotlib import pyplot as plt
+from deep_reinforcement_learning.smart_grid_environment.utils.plot import make_plots
 
 
 def create_car_schedule(number_cars, time):
@@ -26,16 +28,25 @@ class SingleSmartChargingEnv(gymnasium.Env):
 
     # Define constants for clearer code
     ETA = float(0.9)  # charging efficiency
-    P_MAX = float(6.6)  # maximum charging power of car
+    P_MAX = 0.5  # maximum charging power of car
     DELTA_T = float(1)  # 1 hour
     B_MAX = float(40)  # in kWh, maximum battery capacity
+    power_cost_constant = 0.5 # Constant for linear multiplication for cost of power
+    charging_reward_constant = 5 # Constant for linear multiplication for charging reward
+    non_full_ev_cost_constant = 20 # Cost for EV leaving without full charge
+    over_peak_load_constant = 5 # Cost for going over peak load that is multiplied by load
+    peak_load = 0.9 # Maximum allowed load
     rng = np.random.default_rng(seed=42)  # random number generator for price vector
     PRICE_VEC = np.array([62.04, 61.42, 58.14, 57.83, 58.30, 62.49, 71.58, 79.36, 86.02, 78.04, 66.51, 64.53, 47.55, 50.00,
                  63.20, 71.17, 78.28, 89.40, 93.73, 87.19, 77.49, 71.62, 70.06, 66.39]) / 10
-    schedule = np.array([[0., 0., 4., 3., 2., 1., 0., 3., 2., 1., 0., 3., 2., 1., 0., 3., 2., 1., 0., 0., 4., 3., 2., 1.],
+    schedule = np.array([[0., 5., 4., 3., 2., 1., 0., 3., 2., 1., 0., 3., 2., 1., 0., 3., 2., 1., 0., 0., 4., 3., 2., 1.],
                 [2., 1., 0., 0., 0., 1., 0., 0., 0., 0., 6., 5., 4., 3., 2., 1., 0., 0., 3., 2., 1., 0., 1., 0.],
-                [7., 6., 5., 4., 3., 2., 1., 0., 0., 4., 3., 2., 1., 0., 0., 0., 1., 0., 0., 0., 0., 2., 1., 0.],
+                [7., 6., 5., 4., 3., 2., 1., 0., 0., 4., 3., 2., 1., 0., 0., 0., 1., 0., 0., 0., 2., 1., 0., 0.],
                 [2., 1., 0., 0., 0., 0., 0., 0., 5., 4., 3., 2., 1., 0., 0., 0., 0., 2., 1., 0., 0., 7., 6., 5.]])  # A list of shape (num_agents, time) of the schedule of when cars come to the EV
+    ends = np.array([[0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 0.],
+                [0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 1.],
+                [0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0.],
+                [0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0.]])
     PERIODS = 24  # 24 hours
 
     def __init__(self, num_ports=4, max_soc=1, max_time=24, max_price=10, penalty_factor=0.1, beta=0.01):
@@ -66,11 +77,11 @@ class SingleSmartChargingEnv(gymnasium.Env):
         self.agents = self.possible_agents[:]
 
         # Define action and observation spaces for each agent
-        self.action_space = Box(low=-1, high=1, shape=(self.num_ports,), dtype=np.float32)
+        self.action_space = Box(low=-self.P_MAX, high=self.P_MAX, shape=(self.num_ports,), dtype=np.float32)
 
         low = []
         self.observation_space = Box(
-            low=np.array([-1, -1, 0, 0] * self.num_ports),
+            low=np.array([0, -1, 0, 0] * self.num_ports),
             high=np.array([self.max_soc, 24, self.max_price, 1] * self.num_ports),
             dtype=np.float32
         )
@@ -87,15 +98,17 @@ class SingleSmartChargingEnv(gymnasium.Env):
         self.state = []
 
         for idx, agent in enumerate(self.agents):
-            if self.schedule[idx, self.t] > 0:
+            if self.schedule[idx, self.t] > 0.:
                 self.state = self.state +  [0.2, self.schedule[idx, self.t], electricity_price, 1]
             else:
-                self.state = self.state + [-1, -1, electricity_price, 0]
+                self.state = self.state + [0, -1, electricity_price, 0]
 
         return np.array(self.state, dtype="float32"), {agent: {} for agent in self.agents}
 
+
+    # TODO: Needs to constraint that action cannot discharge or charge more than possible
     def step(self, actions):
-        rewards = {}
+        # rewards = {}
         dones = {}
         truncations = {}
         infos = {}
@@ -103,41 +116,49 @@ class SingleSmartChargingEnv(gymnasium.Env):
         total_reward = 0
         total_cost = 0
 
+        total_action = 0
+
         self.t = self.t + 1
 
         for idx_agent, action in enumerate(actions):
             soc, remaining_time, price, has_ev = self.state[idx_agent * 4: (idx_agent + 1) * 4]
             agent = self.possible_agents[idx_agent]
 
+            action_clipped = action
+            if action_clipped < -soc:
+                action_clipped = -soc
+            elif action_clipped > 1-soc:
+                action_clipped = 1 - soc
+
             if has_ev == 1:
                 # Apply action to SoC
-                soc += action * self.P_MAX  # Charging or discharging action
+                soc += action_clipped  # Charging or discharging action
+                if soc < 0 or soc> self.max_soc:
+                    a = 2
                 soc = np.clip(soc, 0, self.max_soc)
 
                 # Calculate reward
-                cost = price * abs(action)
+                cost = price * action_clipped
                 total_cost += cost
-                reward = -cost
+                total_reward -= cost * self.power_cost_constant
 
-                if soc < 1 and remaining_time <= 0:
-                    reward -= 10  # Penalty for car leaving without full charge
+                total_reward += action_clipped * self.charging_reward_constant
 
-                rewards[agent] = reward
-                total_reward += reward
 
-                # Update remaining time
                 remaining_time -= 1
 
-            else:
-                if self.schedule[idx_agent, self.t] > 0:
-                    soc, remaining_time,  price, has_ev= 0.2, self.schedule[idx_agent, self.t], self.PRICE_VEC[self.t], 1
-                else:
-                    soc, remaining_time,  price, has_ev = -1, -1,  self.PRICE_VEC[self.t], 0
+                if self.t < len(self.PRICE_VEC) and self.ends[idx_agent, self.t] == 1:
+                    total_reward -= self.non_full_ev_cost_constant  # Penalty for car leaving without full charge
 
-                rewards[agent] = 0
+                total_action += action_clipped
 
 
-            if self.t >= len(self.PRICE_VEC) - 1:
+                # Update remaining time
+
+                if remaining_time <= 0:
+                    has_ev = 0
+
+            if self.t >= len(self.PRICE_VEC):
                 dones[agent] = True
                 truncations[agent] = False
                 has_ev = 0  # Car leaves, port becomes empty
@@ -146,14 +167,26 @@ class SingleSmartChargingEnv(gymnasium.Env):
             else:
                 dones[agent] = False
                 truncations[agent] = False
+                price = self.PRICE_VEC[self.t]
+                if has_ev < 1:
+                    # print('here', self.schedule[idx_agent, self.t] )
+                    if self.schedule[idx_agent, self.t] > 0:
+                        soc, remaining_time,  price, has_ev= 0.2, self.schedule[idx_agent, self.t], self.PRICE_VEC[self.t], 1
+                    else:
+                        soc, remaining_time,  price, has_ev = 0, -1,  self.PRICE_VEC[self.t], 0
+
+
+                # else:
+                    # print(idx_agent, self.t)
+
+
 
             self.state[idx_agent * 4: (idx_agent + 1) * 4] = [soc, remaining_time, price, has_ev]
 
             infos[agent] = {}
 
-        # Centralized reward adjustment for COMA
-        for agent in self.agents:
-            rewards[agent] += total_reward / len(self.agents)
+        if total_action > self.peak_load:
+            total_reward -= total_action * self.over_peak_load_constant
 
         all_done = all(dones.values())
         if all_done:
@@ -186,6 +219,43 @@ class SingleSmartChargingEnv(gymnasium.Env):
 
 
 # Example of creating the environment and running a step
+
+def get_info():
+    num_agents = 4
+    n_steps = 24
+
+    socs = np.zeros((n_steps, num_agents))
+    actions = np.zeros((n_steps, num_agents))
+    prices = np.zeros((n_steps))
+    exists = np.zeros((n_steps, num_agents))
+    remaining_times = np.zeros((n_steps, num_agents))
+
+    obs = env.reset()[0]
+    socs[0, :] = [obs[i * 4] for i in range(num_agents)]
+    prices[0] = obs[2]
+    exists[0, :] = [obs[(i * 4) + 3] for i in range(num_agents)]
+    remaining_times[0, :] = [obs[(i * 4) + 1] for i in range(num_agents)]
+
+    for step in range(n_steps):
+        action, _ = model.predict(obs)  # 1st step is based on reset()
+        actions[step, :] = action
+        obs, reward, done, _, info = env.step(action)
+
+        if step + 1< n_steps:
+            socs[step + 1, :] = [obs[i * 4] for i in range(num_agents)]
+            prices[step + 1] = obs[2]
+            exists[step + 1, :] = [obs[(i * 4) + 3] for i in range(num_agents)]
+            remaining_times[step + 1, :] = [obs[(i * 4) + 1] for i in range(num_agents)]
+
+
+    make_plots(socs, actions, prices, exists, remaining_times, np.transpose(np.array(env.ends)), np.array(env.schedule))
+
+
+
+
+
+
+
 if __name__ == '__main__':
 
     import os
@@ -204,7 +274,7 @@ if __name__ == '__main__':
 
     # training
     n_timesteps = 1000000  # 1 mil
-    n_runs = 5  # 10 trial runs
+    n_runs = 1  # 10 trial runs
 
     # instatiate path
     modeldir = f"PPO_model_{2}"
@@ -232,4 +302,5 @@ if __name__ == '__main__':
         # save model
         # model.save(f"{modeldir}/{logname}")
 
-
+    get_info()
+    # bagas1()
