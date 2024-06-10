@@ -9,7 +9,7 @@ class COMALearner:
     def __init__(self, models, critic, params={}):
         self.models = models  # List of agent models
         self.critic = critic  # Centralized critic
-        self.n_actions = params.get('n_actions', 3)
+        self.n_actions = params.get('n_actions', 10)
         self.gamma = params.get('gamma', 0.99)
         self.optimizers = [th.optim.Adam(model.parameters(), lr=params.get('lr', 5E-4)) for model in models]
         self.critic_optimizer = th.optim.Adam(self.critic.parameters(), lr=params.get('critic_lr', 5E-4))
