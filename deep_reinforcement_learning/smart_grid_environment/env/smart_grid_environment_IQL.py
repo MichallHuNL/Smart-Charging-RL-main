@@ -6,6 +6,8 @@ from stable_baselines3.common.env_checker import check_env
 from stable_baselines3 import PPO
 from matplotlib import pyplot as plt
 from deep_reinforcement_learning.smart_grid_environment.utils.plot import make_plots
+from deep_reinforcement_learning.smart_grid_environment.utils.schedule import calculate_schedule
+
 
 
 def create_car_schedule(number_cars, time):
@@ -44,21 +46,24 @@ class IQLSmartChargingEnv(gymnasium.Env):
         [[0., 5., 4., 3., 2., 1., 0., 3., 2., 1., 0., 3., 2., 1., 0., 3., 2., 1., 0., 0., 4., 3., 2., 1.],
          [2., 1., 0., 0., 0., 1., 0., 0., 0., 0., 6., 5., 4., 3., 2., 1., 0., 0., 3., 2., 1., 0., 1., 0.],
          [7., 6., 5., 4., 3., 2., 1., 0., 0., 4., 3., 2., 1., 0., 0., 0., 1., 0., 0., 0., 2., 1., 0., 0.],
-         [2., 1., 0., 0., 0., 0., 0., 0., 5., 4., 3., 2., 1., 0., 0., 0., 0., 2., 1., 0., 0., 7., 6., 5.]])   # A list of shape (num_agents, time) of the schedule of when cars come to the EV
-    ends = np.array([[0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 0.],
-                     [0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 1.],
-                     [0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0.],
-                     [0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0.]])
+         [2., 1., 0., 0., 0., 0., 0., 0., 5., 4., 3., 2., 1., 0., 0., 0., 0., 2., 1., 0., 0., 7., 6., 5.]])
+    ends = np.array(
+        [[0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 0.],
+         [0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 1.],
+         [0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0.],
+         [0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0.]])
 
     PERIODS = 24  # 24 hours
 
-    def __init__(self, num_ports=4, max_soc=1, max_time=24, max_price=10, penalty_factor=0.1, beta=0.01, agent_nr = 0):
+    def __init__(self, num_ports=4, leaving_soc = 0.8, max_soc=1, max_time=24, max_price=10, penalty_factor=0.1, beta=0.01, agent_nr = 0):
         super().__init__()
 
         self.agent_nr = agent_nr
 
         # Number of charging ports
         self.num_ports = num_ports
+
+        self.leaving_soc = 0.8
 
         # Maximum SOC of an EV arriving
         self.max_soc = max_soc
@@ -92,6 +97,18 @@ class IQLSmartChargingEnv(gymnasium.Env):
             np.random.seed(seed)
 
         self.t = 0
+
+
+        # TODO: get price based on real data
+        self.PRICE_VEC = np.random.rand(*self.PRICE_VEC.shape) * self.max_price
+
+        arrivals = self.rng.integers(self.PERIODS, size=self.PERIODS)
+        departures = self.rng.integers(arrivals, self.PERIODS + 1, size=self.PERIODS)
+
+        self.schedule, self.ends = calculate_schedule(self.schedule.shape, arrivals, departures)
+
+        # print("schedule: ", self.schedule, flush=True)
+
         electricity_price = self.PRICE_VEC[self.t]
         self.state = []
 
@@ -132,7 +149,7 @@ class IQLSmartChargingEnv(gymnasium.Env):
 
             reward += action_clipped * self.charging_reward_constant
 
-            if self.t < len(self.PRICE_VEC) and self.ends[self.agent_nr, self.t] == 1 and soc < 1:
+            if soc < self.leaving_soc and self.t < len(self.PRICE_VEC) and self.ends[self.agent_nr, self.t] == 1:
                 reward -= self.non_full_ev_cost_constant  # Penalty for car leaving without full charge
 
             # Update remaining time
