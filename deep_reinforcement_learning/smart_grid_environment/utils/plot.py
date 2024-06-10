@@ -145,8 +145,8 @@ def make_plots(socs, actions, prices, exists, remaining_times, ends, schedule):
         # display legend on top right
         plt.legend(loc="upper right")
         plt.tight_layout()
-        plt.show()
-        # plt.savefig(f'plots/agent_{i}.png')
+        # plt.show()
+        plt.savefig(f'plots/agent_{i}.png')
 
     title = 'Total rewards'
 
@@ -184,5 +184,5 @@ def make_plots(socs, actions, prices, exists, remaining_times, ends, schedule):
     plt.legend(loc="upper right")
     plt.tight_layout()
 
-    plt.show()
-    # plt.savefig(f'plots/total_rewards.png')
+    # plt.show()
+    plt.savefig(f'plots/total_rewards.png')
