@@ -3,6 +3,7 @@ from pettingzoo import ParallelEnv
 from gymnasium.spaces import Box, Discrete
 import torch
 
+from deep_reinforcement_learning.smart_grid_environment.data.prices import EnergyPrices
 from deep_reinforcement_learning.smart_grid_environment.utils.schedule import calculate_schedule
 
 
@@ -35,15 +36,17 @@ class SmartChargingEnv(ParallelEnv):
     PERIODS = 24  # 24 hours
 
     # TODO: add peakload
-    def __init__(self, num_ports=4, leaving_soc=0.8, max_soc=1, max_time=24, max_price=0.40, penalty_factor=0.1,
+    def __init__(self, num_ports=4, leaving_soc=0.8, max_soc=1, max_time=24, penalty_factor=0.1,
                  beta=0.01, action_space_size=10, test=False):
         super().__init__()
+
+        self.price_loader = EnergyPrices()
 
         # Number of charging ports
         self.num_ports = num_ports
 
         # Minimum soc to not receive punishment
-        self.leaving_soc = leaving_soc
+        self.leaving_soc = leaving_soc - 0.01
 
         # Maximum SOC of an EV arriving
         self.max_soc = max_soc
@@ -52,7 +55,7 @@ class SmartChargingEnv(ParallelEnv):
         self.max_time = max_time
 
         # Maximum price on the grid (since otherwise cannot model it) / kWh
-        self.max_price = max_price
+        self.max_price = self.price_loader.max_price()
 
         # Penalty factor for the car
         self.penalty_factor = penalty_factor
@@ -90,16 +93,20 @@ class SmartChargingEnv(ParallelEnv):
 
         self.agents = self.possible_agents[:]
 
-        # TODO: get price based on real data
-        self.PRICE_VEC = np.random.rand(*self.PRICE_VEC.shape) * self.max_price
+        # Get a price from the dataloader
+        start_price = self.rng.integers(0, len(self.price_loader) - self.PERIODS)
+        self.PRICE_VEC = self.price_loader[start_price:start_price + self.PERIODS]
+        # print(self.PRICE_VEC)
 
+        # Set random arrival and departure times to train the agent on
         arrivals = self.rng.integers(self.PERIODS, size=self.PERIODS)
         departures = self.rng.integers(arrivals, self.PERIODS + 1, size=self.PERIODS)
 
-        self.schedule, self.ends = calculate_schedule(self.schedule.shape, arrivals, departures)
+        # Train the agent on days when cars don't leave
+        # arrivals = np.zeros(self.num_agents, dtype=np.intp)
+        # departures = np.ones(self.num_agents, dtype=np.intp) * (self.PERIODS - 1)
 
-        # print("schedule: ", self.schedule, flush=True)
-        # print("ends: ", self.ends, flush=True)
+        self.schedule, self.ends = calculate_schedule(self.schedule.shape, arrivals, departures)
 
         electricity_price = self.PRICE_VEC[0]
         self.state = {}
@@ -195,8 +202,8 @@ class SmartChargingEnv(ParallelEnv):
             infos[agent] = {}
 
         # Centralized reward adjustment for COMA
-        for agent in self.agents:
-            rewards[agent] += total_reward / len(self.agents)
+        # for agent in self.agents:
+        #     rewards[agent] += total_reward / len(self.agents)
 
         all_done = all(dones.values())
         if all_done:
