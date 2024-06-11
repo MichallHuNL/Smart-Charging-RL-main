@@ -26,6 +26,7 @@ class Runner:
         self.state = None
         self.time = 0
         self._next_step()
+        self.plot()
 
     def close(self):
         self.env.close()
@@ -130,6 +131,7 @@ class Runner:
         prices = np.zeros((n_steps))
         exists = np.zeros((n_steps, num_agents))
         remaining_times = np.zeros((n_steps, num_agents))
+        rewards = np.zeros((n_steps, num_agents))
 
         obs = self.env.reset()[0]
         states = [obs[i] for i in range(num_agents)]
@@ -137,6 +139,8 @@ class Runner:
         prices[0] = states[0][2]
         exists[0, :] = [state[3] for state in states]
         remaining_times[0, :] = [state[1] for state in states]
+
+        # print("-------------------------RUNNING FOR PLOTS -------------------------")
 
         for step in range(n_steps):
             action = self.controller.controller.choose(self.state)
@@ -149,5 +153,7 @@ class Runner:
                 prices[step + 1] = states[0][2]
                 exists[step + 1, :] = [state[3] for state in states]
                 remaining_times[step + 1, :] = [state[1] for state in states]
+                rewards[step + 1] = np.fromiter(reward.values(), dtype=float)
         make_plots(socs, actions, prices, exists, remaining_times, np.transpose(np.array(self.env.ends)),
-                   np.array(self.env.schedule))
+                   np.array(self.env.schedule), rewards)
+        # print("-------------------------      DONE       -------------------------")
