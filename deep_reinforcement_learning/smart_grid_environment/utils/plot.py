@@ -49,7 +49,7 @@ def get_socs_when_leave(socs, actions, ends):
     for i in range(socs.shape[0]):
         for j in range(socs.shape[1]):
             if ends[i, j] == 1:
-                socs_plus_leaves[i, j] = socs[i-1, j] + actions[i-1, j]
+                socs_plus_leaves[i, j] = socs[i-1, j] + actions[i-1, j] * p_max
     return socs_plus_leaves
 
 
@@ -79,20 +79,20 @@ def find_non_zero_intervals(row):
 # remaining_times - numpy array of size (steps, num_agents)
 # ends - numpy array of size (steps, num_agents)
 # schedule - numpy array of size (steps, num_agents)
-def make_plots(socs, actions, prices, exists, remaining_times, ends, schedule):
+def make_plots(socs, actions, prices, exists, remaining_times, ends, schedule, rewards):
     # actions_clipped = actions * p_max
     # actions_clipped = np.clip(actions_clipped, -socs, 1 - socs)
     # actions_clipped = np.clip(actions_clipped, -1, 0.5)
     actions = get_action_if_ev(actions, exists)
-    rewards, total_rewards = get_rewards(socs, actions, prices, exists, remaining_times, ends)
-    # socs = get_socs_when_leave(socs, actions, ends)
-    print("rewards", rewards)
-    print("total_rewards", total_rewards)
+    # rewards, total_rewards = get_rewards(socs, actions, prices, exists, remaining_times, ends)
+    socs = get_socs_when_leave(socs, actions, ends)
+    # print("rewards", rewards)
+    # print("total_rewards", total_rewards)
     # print(action_if_ev)
 
     # Get intervals for each row
     intervals = [find_non_zero_intervals(row) for row in schedule]
-    print("intervals", intervals)
+    # print("intervals", intervals)
 
 
 
@@ -106,7 +106,7 @@ def make_plots(socs, actions, prices, exists, remaining_times, ends, schedule):
         # plot soc_rl vs soc_exact
         plt.plot(np.arange(0, len(socs), 1), socs[:, i], label=f'soc-agent{i}')
 
-        print("actions: ", actions[:, i], flush=True)
+        # print("actions: ", actions[:, i], flush=True)
         plt.bar(np.arange(0, len(actions), 1), actions[:, i], label=f'action-agent{i}')
 
         # set opacity
@@ -130,10 +130,17 @@ def make_plots(socs, actions, prices, exists, remaining_times, ends, schedule):
 
         # plot price in the same figure but on the right y-axis
         plt.twinx()
-        plt.plot(prices * 10, label="Price", color='g')
+        plt.plot(prices, label="Price", color='g')
 
         plt.ylabel("Price", color='g')
         plt.yticks(color='g')
+
+        # plot reward in the same figure but on the right y-axis
+        plt.twinx()
+        plt.plot(np.arange(0, len(rewards), 1), rewards[:, i], label=f'reward-agent{i}', color='y')
+
+        plt.ylabel("Reward", color='y')
+        plt.yticks(color='y')
 
         # display legend on top right
         plt.legend(loc="upper right")
@@ -144,7 +151,7 @@ def make_plots(socs, actions, prices, exists, remaining_times, ends, schedule):
 
     title = 'Total rewards'
 
-    plt.plot(np.arange(0, len(socs), 1), total_rewards, label="total_rewards")
+    plt.plot(np.arange(0, len(socs), 1), rewards.sum(axis=1), label="total_rewards")
 
     # set opacity
     plt.setp(plt.gca().patches, alpha=0.3)
