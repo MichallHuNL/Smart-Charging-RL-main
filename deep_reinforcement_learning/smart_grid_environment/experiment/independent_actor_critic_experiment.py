@@ -6,7 +6,7 @@ from pettingzoo import ParallelEnv
 from .experiment import Experiment
 from ..controller.Controller import LogitsController, EpsilonGreedyController
 from ..runner.Runner import Runner
-from ..learner.qlearner import QLearner
+from ..learner.qlearner import QLearner, DoubleQLearner
 from ..utils.TransitionBatch import TransitionBatch
 from ..learner.comalearner import COMALearner
 
@@ -24,10 +24,31 @@ class ActorCriticExperiment(Experiment):
         self.controller = LogitsController(models, num_actions=env.n_actions, params=params)
         self.controller = EpsilonGreedyController(controller=self.controller, params=params)
         self.runner = Runner(env, self.controller, params=params)
+        self.use_last_episode = params.get('use_last_episode', True)
+        self.replay_buffer = [TransitionBatch(params.get('replay_buffer_size', int(1E5)),
+                                             self.runner.transition_format(),
+                                             batch_size=params.get('batch_size', 1024)) for agent in self.agents]
         if self.method == 'COMA':
             self.learner = COMALearner(models, critic, params)
         elif self.method == 'IQL':
-            self.learners = [QLearner(model, idx, params) if learner is None else learner for (idx, model) in enumerate(models)]
+            self.learners = [DoubleQLearner(model, idx, params) if learner is None else learner for (idx, model) in enumerate(models)]
+
+    def _learn_from_episode(self, episode):
+        """ This function uses the episode to train.
+            Although not implemented, one could also add the episode to a replay buffer here.
+            Returns the training loss for logging or None if train() was not called. """
+        total_agent_loss = np.zeros(self.num_agents)
+        for agent in self.agents:
+            self.replay_buffer[agent].add(episode['buffer'][agent])
+
+            if self.replay_buffer[agent].size >= self.replay_buffer[agent].batch_size:
+                batch = self.replay_buffer[agent].sample()
+                # Call train (params['grad_repeats']) times
+                total_loss = 0
+                for i in range(self.grad_repeats):
+                    total_loss += self.learners[agent].train(batch)
+                total_agent_loss[agent] = total_loss
+        return total_agent_loss / self.grad_repeats
 
     def close(self):
         """ Overrides Experiment.close() """
@@ -52,9 +73,12 @@ class ActorCriticExperiment(Experiment):
                 self.episode_returns.append(batch['episode_reward'])
             # Make a gradient update step
             if self.method == 'IQL':
-                for agent in self.agents:
-                    loss = [learner.train(batch['buffer'][agent]) for learner in self.learners]
-                    self.episode_losses[agent].append(np.mean(loss))
+                # for agent in self.agents:
+                #     loss = [learner.train(batch['buffer'][agent]) for learner in self.learners]
+                #     self.episode_losses[agent].append(np.mean(loss))
+                losses = self._learn_from_episode(batch)
+                for agent, loss in enumerate(losses):
+                    self.episode_losses[agent].append(loss.item())
             elif self.method == 'COMA':
                 # Make a gradient update step
                 policy_losses, critic_loss = self.learner.train(batch['buffer'])

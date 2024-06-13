@@ -8,7 +8,9 @@ if __name__ == '__main__':
 
     # Executing this code-block defines a new experiment
     params = default_params()
-    params['max_episode_length'] = 200
+    params['max_episode_length'] = 500
+    params['max_steps'] = int(2E6)
+    params['double_q'] = True
     num_agents = params.get('n_agents', 4)
     env = SmartChargingEnv(num_ports=num_agents, action_space_size=params.get('n_actions', 3))
     n_actions, state_dim = params.get('n_actions', 10), env.observation_space(env.agents[0]).shape[0]
