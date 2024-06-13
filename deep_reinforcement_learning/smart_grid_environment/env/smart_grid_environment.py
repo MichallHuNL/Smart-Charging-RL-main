@@ -14,7 +14,7 @@ class SmartChargingEnv(ParallelEnv):
     P_MAX = float(0.5)  # maximum charging power of car in % of soc
     power_cost_constant = 1  # Constant for linear multiplication for cost of power
     charging_reward_constant = 0.1  # Constant for linear multiplication for charging reward
-    non_full_ev_cost_constant = 20  # Cost for EV leaving without full charge
+    non_full_ev_cost_constant = 10  # Cost for EV leaving without full charge
     over_peak_load_constant = 5  # Cost for going over peak load that is multiplied by load
     peak_load = 1.5  # Maximum allowed load
     rng = np.random.default_rng(seed=42)  # random number generator for price vector
@@ -99,12 +99,12 @@ class SmartChargingEnv(ParallelEnv):
         # print(self.PRICE_VEC)
 
         # Set random arrival and departure times to train the agent on
-        arrivals = self.rng.integers(self.PERIODS, size=self.PERIODS)
-        departures = self.rng.integers(arrivals, self.PERIODS + 1, size=self.PERIODS)
+        # arrivals = self.rng.integers(self.PERIODS, size=self.PERIODS)
+        # departures = self.rng.integers(arrivals, self.PERIODS + 1, size=self.PERIODS)
 
         # Train the agent on days when cars don't leave
-        # arrivals = np.zeros(self.num_agents, dtype=np.intp)
-        # departures = np.ones(self.num_agents, dtype=np.intp) * (self.PERIODS - 1)
+        arrivals = np.zeros(self.num_agents, dtype=np.intp)
+        departures = np.ones(self.num_agents, dtype=np.intp) * (self.PERIODS - 1)
 
         self.schedule, self.ends = calculate_schedule(self.schedule.shape, arrivals, departures)
 
