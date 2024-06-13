@@ -80,7 +80,7 @@ class COMALearner:
             # Backpropagate policy loss
             self.optimizers[agent].zero_grad()
             policy_loss.backward()
-            # th.nn.utils.clip_grad_norm_(model.parameters(), self.grad_norm_clip)
+            th.nn.utils.clip_grad_norm_(model.parameters(), self.grad_norm_clip)
             self.optimizers[agent].step()
 
         return policy_losses, critic_loss
