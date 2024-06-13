@@ -64,7 +64,7 @@ class Runner:
 
     def _make_step(self, a):
         """ Make an actual step inside the environment given to the runner and retrieve information """
-        ns, r, t, d, _ = self.env.step(a)
+        ns, r, d, t, _ = self.env.step(a)
         self.sum_rewards += th.sum(th.tensor(list(r.values())), dim=0)
         return r, ns, t, d or t
 
