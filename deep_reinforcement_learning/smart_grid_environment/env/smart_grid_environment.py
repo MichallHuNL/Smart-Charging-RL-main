@@ -2,6 +2,7 @@ import numpy as np
 from pettingzoo import ParallelEnv
 from gymnasium.spaces import Box, Discrete
 import torch
+import math
 
 from deep_reinforcement_learning.smart_grid_environment.data.prices import EnergyPrices
 from deep_reinforcement_learning.smart_grid_environment.utils.schedule import calculate_schedule
@@ -137,6 +138,7 @@ class SmartChargingEnv(ParallelEnv):
         dones = {}
         truncations = {}
         infos = {}
+        total_action = 0
 
         total_reward = 0
         total_cost = 0
@@ -154,6 +156,8 @@ class SmartChargingEnv(ParallelEnv):
                 action = ((float(action) / (self.n_actions // 2)) - 1.0) * self.P_MAX
 
                 action_clipped = np.clip(action, -soc, self.max_soc - soc)
+
+                total_action += action_clipped
                 # Apply action to SoC
                 soc += action_clipped  # Charging or discharging action
 
@@ -202,8 +206,10 @@ class SmartChargingEnv(ParallelEnv):
             infos[agent] = {}
 
         # Centralized reward adjustment for COMA
-        # for agent in self.agents:
-        #     rewards[agent] += total_reward / len(self.agents)
+        total_reward -= self.over_peak_load_constant * np.max(total_action - self.peak_load, 0)
+
+        for agent in self.agents:
+            rewards[agent] += total_reward / self.num_ports
 
         all_done = all(dones.values())
         if all_done:

@@ -53,9 +53,8 @@ class LogitsController(MultiController):
         try:
             probabilities = th.zeros(self.num_agents, self.num_actions)
             for i in range(self.num_agents):
-                port = i
-                mx = observations[port] if precomputed and precomputed[i] else self.models[i](
-                    self.sanitize_inputs(observations[port]))[:, :self.num_actions]
+                mx = observations if precomputed and precomputed[i] else self.models[i](
+                    self.sanitize_inputs(observations))[:, :self.num_actions]
                 probabilities[i] = th.nn.functional.softmax(mx, dim=-1)
                 if th.isnan(probabilities).any():
                     print('Nan Found for following probabilities: ', probabilities)

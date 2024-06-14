@@ -21,12 +21,12 @@ class Runner:
         self.gamma = params.get('gamma', 0.99)
 
         # Observations are equal to the state for the next state most likely
-        self.state_shape = self.env.observation_space(self.env.agents[0]).shape
+        self.state_shape = self.env.observation_space(self.env.agents[0]).shape[0]
         self.sum_rewards = 0.0
         self.state = None
         self.time = 0
         self._next_step()
-        self.plot()
+        # self.plot()
 
     def close(self):
         self.env.close()
@@ -34,8 +34,8 @@ class Runner:
     def transition_format(self):
         """ Returns the format of transitions: a dictionary of (shape, dtype) entries for each key. """
         return {'actions': ((1,), th.int64),
-                'states': (self.state_shape, th.float32),
-                'next_states': (self.state_shape, th.float32),
+                'states': ((self.n_agents * self.state_shape,), th.float32),
+                'next_states': ((self.n_agents * self.state_shape,), th.float32),
                 'rewards': ((1,),  th.float32),
                 'dones': ((1,), th.bool),
                 'returns': ((1,), th.float32),
@@ -66,6 +66,7 @@ class Runner:
         """ Make an actual step inside the environment given to the runner and retrieve information """
         ns, r, d, t, _ = self.env.step(a)
         self.sum_rewards += th.sum(th.tensor(list(r.values())), dim=0)
+        ns = [x for k in ns.values() for x in k]
         return r, ns, t, d or t
 
     def _next_step(self, done=True, next_state=None):
@@ -73,7 +74,8 @@ class Runner:
         self.time = 0 if done else self.time + 1
         if done:
             self.sum_rewards = 0.0
-            self.state, _ = self.env.reset()
+            state, _ = self.env.reset()
+            self.state = [x for k in state.values() for x in k]
         else:
             self.state = next_state
 
@@ -90,7 +92,7 @@ class Runner:
             probs = self.controller.probabilities(self.state)
             done = done["__all__"]
             for agent in self.agents:
-                tb[agent].add(self._wrap_transition(self.state[agent], action[agent], r[agent], ns[agent], terminal[agent], probs[agent]))
+                tb[agent].add(self._wrap_transition(self.state, action[agent], r[agent], ns, terminal[agent], probs[agent]))
                 # Terminate the Runner when there are no more runs allowed
                 if self.env._elapsed_steps >= self.episode_length: done = True
                 if done or t == (max_steps - 1):

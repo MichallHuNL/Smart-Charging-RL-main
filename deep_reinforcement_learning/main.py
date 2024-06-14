@@ -15,7 +15,10 @@ if __name__ == '__main__':
     env = SmartChargingEnv(num_ports=num_agents, action_space_size=params.get('n_actions', 3))
     n_actions, state_dim = params.get('n_actions', 10), env.observation_space(env.agents[0]).shape[0]
     # The model has n_action policy heads and one value head
-    models = [th.nn.Sequential(th.nn.Linear(state_dim, 128), th.nn.ReLU(),
+
+    # Full observability of the agents
+    input_dim = num_agents * state_dim
+    models = [th.nn.Sequential(th.nn.Linear(input_dim , 128), th.nn.ReLU(),
                                th.nn.Linear(128, 512), th.nn.ReLU(),
                                th.nn.Linear(512, 128), th.nn.ReLU(),
                                th.nn.Linear(128, n_actions + 1)) for _ in range(num_agents)]
@@ -26,4 +29,4 @@ if __name__ == '__main__':
         experiment.run()
     except KeyboardInterrupt:
         experiment.close()
-    experiment.plot_training()
+    # experiment.plot_training()
