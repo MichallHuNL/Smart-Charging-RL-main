@@ -3,6 +3,7 @@ import gymnasium
 import torch as th
 import numbers
 import numpy as np
+import time
 from pettingzoo import ParallelEnv
 
 from ..utils.TransitionBatch import TransitionBatch
@@ -11,7 +12,9 @@ from ..utils.plot import make_plots
 
 class Runner:
 
-    def __init__(self, env: ParallelEnv, controller, params={}):
+    def __init__(self, env: ParallelEnv, controller, params=None):
+        if params is None:
+            params = {}
         self.env = env
         self.n_agents = params.get('n_agents', 4)
         self.agents = [i for i in range(self.n_agents)]
@@ -26,7 +29,7 @@ class Runner:
         self.state = None
         self.time = 0
         self._next_step()
-        # self.plot()
+        self.plot()
 
     def close(self):
         self.env.close()
@@ -124,7 +127,7 @@ class Runner:
     def run_episode(self, transition_buffer=None, trim=True, return_dict=None):
         return self.run(0, transition_buffer, trim, return_dict)
 
-    def plot(self):
+    def plot(self, options=None):
         num_agents = self.n_agents
         n_steps = self.env.PERIODS
 
@@ -135,7 +138,7 @@ class Runner:
         remaining_times = np.zeros((n_steps, num_agents))
         rewards = np.zeros((n_steps, num_agents))
 
-        obs = self.env.reset()[0]
+        obs = self.env.reset(options=options)[0]
         states = [obs[i] for i in range(num_agents)]
         socs[0, :] = [state[0] for state in states]
         prices[0] = states[0][2]
@@ -144,6 +147,7 @@ class Runner:
 
         # print("-------------------------RUNNING FOR PLOTS -------------------------")
 
+        start = time.perf_counter()
         for step in range(n_steps):
             action = self.controller.controller.choose(self.state)
             reward, obs, terminal, done = self._make_step(self._actions_to_dict(action))
@@ -156,6 +160,8 @@ class Runner:
                 exists[step + 1, :] = [state[3] for state in states]
                 remaining_times[step + 1, :] = [state[1] for state in states]
                 rewards[step + 1] = np.fromiter(reward.values(), dtype=float)
+        end = time.perf_counter()
+        print("Elapsed time", end - start, "seconds", flush=True)
         make_plots(socs, actions, prices, exists, remaining_times, np.transpose(np.array(self.env.ends)),
                    np.array(self.env.schedule), rewards)
         # print("-------------------------      DONE       -------------------------")
