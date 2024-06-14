@@ -38,6 +38,8 @@ if __name__ == '__main__':
                                th.nn.Linear(128, n_actions + 1)) for _ in range(num_agents)]
     experiment = ActorCriticExperiment(params, models, env)
 
+    experiment.load_checkpoint(10)
+
     # Re-executing this code-block picks up the experiment where you left off
     try:
         experiment.run()

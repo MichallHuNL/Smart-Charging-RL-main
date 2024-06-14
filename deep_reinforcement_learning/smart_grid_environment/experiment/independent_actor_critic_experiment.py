@@ -9,6 +9,7 @@ from ..runner.Runner import Runner
 from ..learner.qlearner import QLearner, DoubleQLearner
 from ..utils.TransitionBatch import TransitionBatch
 from ..learner.comalearner import COMALearner
+from ..utils.checkpoint import save_checkpoint, load_checkpoint
 
 
 class ActorCriticExperiment(Experiment):
@@ -99,6 +100,7 @@ class ActorCriticExperiment(Experiment):
                             self.agents]))
 
     def plot_training(self, update=False):
+        self.save_checkpoint(len(self.episode_returns))
         window = max(int(len(self.episode_returns) / 50), 10)
         if any([len(self.episode_losses[agent]) < window + 2 for agent in self.agents]): return
         super().plot_training(update)
@@ -107,3 +109,11 @@ class ActorCriticExperiment(Experiment):
     def test_instance(self, t_arr, t_dep, soc_int, prices):
         instance = {'t_arr': t_arr, 't_dep': t_dep, 'soc_int': soc_int, 'prices': prices}
         self.runner.plot(options=instance)
+
+    def save_checkpoint(self, epoch, losses=None):
+        models, optimizers = list(zip(*[(learner.model, learner.optimizer) for learner in self.learners]))
+        save_checkpoint(epoch, models, optimizers, losses)
+
+    def load_checkpoint(self, epoch):
+        models, optimizers = list(zip(*[(learner.model, learner.optimizer) for learner in self.learners]))
+        load_checkpoint(epoch, models, optimizers)
