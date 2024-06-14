@@ -72,12 +72,12 @@ class Runner:
         ns = [x for k in ns.values() for x in k]
         return r, ns, t, d or t
 
-    def _next_step(self, done=True, next_state=None):
+    def _next_step(self, done=True, next_state=None, options=None):
         """Switch to the next step for the runner"""
         self.time = 0 if done else self.time + 1
         if done:
             self.sum_rewards = 0.0
-            state, _ = self.env.reset()
+            state, _ = self.env.reset(options=options)
             self.state = [x for k in state.values() for x in k]
         else:
             self.state = next_state
@@ -131,19 +131,25 @@ class Runner:
         num_agents = self.n_agents
         n_steps = self.env.PERIODS
 
-        socs = np.zeros((n_steps, num_agents))
+        observations = np.empty((n_steps, num_agents * 4))
+
+        # socs = np.zeros((n_steps, num_agents))
         actions = np.zeros((n_steps, num_agents))
-        prices = np.zeros((n_steps))
-        exists = np.zeros((n_steps, num_agents))
-        remaining_times = np.zeros((n_steps, num_agents))
+        # prices = np.zeros((n_steps))
+        # exists = np.zeros((n_steps, num_agents))
+        # remaining_times = np.zeros((n_steps, num_agents))
         rewards = np.zeros((n_steps, num_agents))
 
-        obs = self.env.reset(options=options)[0]
-        states = [obs[i] for i in range(num_agents)]
-        socs[0, :] = [state[0] for state in states]
-        prices[0] = states[0][2]
-        exists[0, :] = [state[3] for state in states]
-        remaining_times[0, :] = [state[1] for state in states]
+        self._next_step(options=options)
+
+        observations[0] = self.state
+
+        # obs = self.env.reset(options=options)[0]
+        # states = [self.state[i] for i in range(num_agents)]
+        # socs[0, :] = [state[0::4] for state in states]
+        # prices[0] = states[0][2]
+        # exists[0, :] = [state[3] for state in states]
+        # remaining_times[0, :] = [state[1] for state in states]
 
         # print("-------------------------RUNNING FOR PLOTS -------------------------")
 
@@ -154,14 +160,18 @@ class Runner:
 
             actions[step] = (action / (self.env.n_actions // 2)) - 1.0
             if step + 1 < n_steps:
-                states = [obs[i] for i in range(num_agents)]
-                socs[step + 1, :] = [state[0] for state in states]
-                prices[step + 1] = states[0][2]
-                exists[step + 1, :] = [state[3] for state in states]
-                remaining_times[step + 1, :] = [state[1] for state in states]
+                observations[step + 1] = obs
                 rewards[step + 1] = np.fromiter(reward.values(), dtype=float)
+            self._next_step(done=False, next_state=obs)
         end = time.perf_counter()
         print("Elapsed time", end - start, "seconds", flush=True)
+
+        socs = observations[:, 0::4]
+        remaining_times = observations[:, 1::4]
+        prices = observations[:, 2::4].mean(axis=-1)
+        exists = observations[:, 3::4]
+
         make_plots(socs, actions, prices, exists, remaining_times, np.transpose(np.array(self.env.ends)),
                    np.array(self.env.schedule), rewards)
+        self._next_step()
         # print("-------------------------      DONE       -------------------------")

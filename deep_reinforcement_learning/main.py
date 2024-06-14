@@ -1,18 +1,32 @@
 import torch as th
+import os
 
 from smart_grid_environment.env.smart_grid_environment import SmartChargingEnv
 from smart_grid_environment.utils.default_params import default_params
 from smart_grid_environment.experiment.independent_actor_critic_experiment import ActorCriticExperiment
+from tests.instance_loader import load_instance
 
 if __name__ == '__main__':
+    filename = "plots/plot.png"
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    num_agents, t_arr, t_dep, soc_req, soc_int, P_c_max, P_d_max, P_max_grid, E_cap, prices = (
+        load_instance(10, filename='tests/test_instances.json'))
+    assert P_c_max == P_d_max
 
     # Executing this code-block defines a new experiment
     params = default_params()
-    params['max_episode_length'] = 500
+    params['n_actions'] = 10
+    params['n_agents'] = num_agents
     params['max_steps'] = int(2E6)
     params['double_q'] = True
-    num_agents = params.get('n_agents', 4)
-    env = SmartChargingEnv(num_ports=num_agents, action_space_size=params.get('n_actions', 3))
+
+    # When these params change, retrain agents
+    params['soc_req'] = soc_req[0]
+    params['p_max'] = E_cap[0] / P_c_max[0]
+    params['p_max_grid'] = P_max_grid[0]
+
+    env = SmartChargingEnv(num_ports=num_agents, action_space_size=params.get('n_actions'), p_max=params.get('p_max'),
+                           p_grid_max=params.get('p_max_grid'), leaving_soc=params.get('soc_req'), )
     n_actions, state_dim = params.get('n_actions', 10), env.observation_space(env.agents[0]).shape[0]
     # The model has n_action policy heads and one value head
 
@@ -28,5 +42,9 @@ if __name__ == '__main__':
     try:
         experiment.run()
     except KeyboardInterrupt:
+        print("Stopped training")
+    finally:
+        # Now running test instance
+        print("Running test instance")
+        experiment.test_instance(t_arr, t_dep, soc_int[0], prices)
         experiment.close()
-    # experiment.plot_training()

@@ -49,7 +49,7 @@ def get_socs_when_leave(socs, actions, ends):
     for i in range(socs.shape[0]):
         for j in range(socs.shape[1]):
             if ends[i, j] == 1:
-                socs_plus_leaves[i, j] = socs[i-1, j] + actions[i-1, j] * p_max
+                socs_plus_leaves[i, j] = np.clip(socs[i-1, j] + actions[i-1, j] * p_max, 0, 1)
     return socs_plus_leaves
 
 
@@ -79,11 +79,11 @@ def find_non_zero_intervals(row):
 # remaining_times - numpy array of size (steps, num_agents)
 # ends - numpy array of size (steps, num_agents)
 # schedule - numpy array of size (steps, num_agents)
-def make_plots(socs, actions, prices, exists, remaining_times, ends, schedule, rewards):
+def make_plots(socs, pre_filter_actions, prices, exists, remaining_times, ends, schedule, rewards):
     # actions_clipped = actions * p_max
     # actions_clipped = np.clip(actions_clipped, -socs, 1 - socs)
     # actions_clipped = np.clip(actions_clipped, -1, 0.5)
-    actions = get_action_if_ev(actions, exists)
+    actions = get_action_if_ev(pre_filter_actions, exists)
     # rewards, total_rewards = get_rewards(socs, actions, prices, exists, remaining_times, ends)
     socs = get_socs_when_leave(socs, actions, ends)
     # print("rewards", rewards)

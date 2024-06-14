@@ -1,10 +1,10 @@
 import json
 
-def load_instance(N, id=1, J=24):
+def load_instance(N, id=1, J=24, filename='test_instances.json'):
     """
     Load an instance from the test_instances.json file
     """
-    with open('test_instances.json') as f:
+    with open(filename) as f:
       test_instances = json.load(f)
 
 
