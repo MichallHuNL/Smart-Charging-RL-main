@@ -22,8 +22,8 @@ if __name__ == '__main__':
 
     # When these params change, retrain agents
     params['soc_req'] = soc_req[0]
-    params['p_max'] = E_cap[0] / P_c_max[0]
-    params['p_max_grid'] = P_max_grid[0]
+    params['p_max'] = P_c_max[0] / E_cap[0]
+    params['p_max_grid'] = P_max_grid[0] / E_cap[0]
 
     env = SmartChargingEnv(num_ports=num_agents, action_space_size=params.get('n_actions'), p_max=params.get('p_max'),
                            p_grid_max=params.get('p_max_grid'), leaving_soc=params.get('soc_req'), )
