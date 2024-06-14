@@ -103,3 +103,7 @@ class ActorCriticExperiment(Experiment):
         if any([len(self.episode_losses[agent]) < window + 2 for agent in self.agents]): return
         super().plot_training(update)
         self.runner.plot()
+
+    def test_instance(self, t_arr, t_dep, soc_int, prices):
+        instance = {'t_arr': t_arr, 't_dep': t_dep, 'soc_int': soc_int, 'prices': prices}
+        self.runner.plot(options=instance)
