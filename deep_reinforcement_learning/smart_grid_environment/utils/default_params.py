@@ -6,7 +6,7 @@ def default_params():
             'print_when_plot': True,          # prints debug message if True
             'print_dots': False,              # prints dots for every gradient update
             # Environment parameters
-            'max_episode_length': 300,        # maximum number of steps per episode
+            'max_episode_length': 25,         # maximum number of steps per episode
 
 
             # Runner parameters
@@ -27,7 +27,7 @@ def default_params():
             'grad_norm_clip': 1,              # gradent clipping if grad norm is larger than this
             'n_actions': 10,                  # Size of discrete action space
             # DQN parameters
-            'replay_buffer_size': int(1E5),   # the number of transitions in the replay buffer
+            'replay_buffer_size': int(1E3),   # the number of transitions in the replay buffer
             'use_last_episode': True,         # whether the last episode is always sampled from the buffer
             'target_model': True,             # whether a target model is used in DQN
             'target_update': 'soft',          # 'soft' target update or hard update by regular 'copy'
