@@ -56,8 +56,8 @@ class ActorCriticExperiment(Experiment):
     def run(self):
         """ Overrides Experiment.run() """
         # Plot past results if available
-        # if self.plot_frequency is not None and len(self.episode_losses) > 2:
-        #     self.plot_training(update=True)
+        if self.plot_frequency is not None and len(self.episode_losses) > 2:
+            self.plot_training(update=True)
         # Run the experiment
         transition_buffer = {agent: TransitionBatch(self.batch_size, self.runner.transition_format(), self.batch_size)
                              for agent in self.agents}
@@ -102,4 +102,4 @@ class ActorCriticExperiment(Experiment):
         window = max(int(len(self.episode_returns) / 50), 10)
         if any([len(self.episode_losses[agent]) < window + 2 for agent in self.agents]): return
         super().plot_training(update)
-        # self.runner.plot()
+        self.runner.plot()
