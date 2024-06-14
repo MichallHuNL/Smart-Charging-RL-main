@@ -43,7 +43,6 @@ class QLearner:
         """ Performs one gradient decent step of DQN. """
         self.model.train(True)
         # Compute TD-loss
-        peak_load = 0
         targets = batch['rewards'][self.idx] + self.gamma * (~batch['dones'][self.idx] * self._next_state_values(batch))
         loss = self.criterion(self._current_values(batch), targets.detach())
         # Backpropagate loss
