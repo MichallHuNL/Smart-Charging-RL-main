@@ -11,35 +11,25 @@ from deep_reinforcement_learning.smart_grid_environment.utils.schedule import ca
 class SmartChargingEnv(ParallelEnv):
     metadata = {"render.modes": ["human"], "name": "neighborhood_charging_env"}
 
-    # Define constants for clearer code
-    P_MAX = float(0.5)  # maximum charging power of car in % of soc
     power_cost_constant = 1  # Constant for linear multiplication for cost of power
     charging_reward_constant = 0.1  # Constant for linear multiplication for charging reward
     non_full_ev_cost_constant = 20  # Cost for EV leaving without full charge
     over_peak_load_constant = 5  # Cost for going over peak load that is multiplied by load
-    peak_load = 1.5  # Maximum allowed load
-    rng = np.random.default_rng(seed=42)  # random number generator for price vector
-    PRICE_VEC = np.array(
-        [62.04, 61.42, 58.14, 57.83, 58.30, 62.49, 71.58, 79.36, 86.02, 78.04, 66.51, 64.53, 47.55, 50.00,
-         63.20, 71.17, 78.28, 89.40, 93.73, 87.19, 77.49, 71.62, 70.06, 66.39]) / 10
 
-    # A list of shape (num_agents, time) of the schedule of when cars come to the EV
-    schedule = np.array(
-        [[0., 5., 4., 3., 2., 1., 0., 3., 2., 1., 0., 3., 2., 1., 0., 3., 2., 1., 0., 0., 4., 3., 2., 1.],
-         [2., 1., 0., 0., 0., 1., 0., 0., 0., 0., 6., 5., 4., 3., 2., 1., 0., 0., 3., 2., 1., 0., 1., 0.],
-         [7., 6., 5., 4., 3., 2., 1., 0., 0., 4., 3., 2., 1., 0., 0., 0., 1., 0., 0., 0., 2., 1., 0., 0.],
-         [2., 1., 0., 0., 0., 0., 0., 0., 5., 4., 3., 2., 1., 0., 0., 0., 0., 2., 1., 0., 0., 7., 6., 5.]])
-    ends = np.array(
-        [[0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 0.],
-         [0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 1.],
-         [0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0.],
-         [0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0.]])
+    rng = np.random.default_rng(seed=42)  # random number generator for price vector
     PERIODS = 24  # 24 hours
 
     # TODO: add peakload
     def __init__(self, num_ports=4, leaving_soc=0.8, max_soc=1, max_time=24, penalty_factor=0.1,
-                 beta=0.01, action_space_size=10, test=False):
+                 beta=0.01, action_space_size=10, p_grid_max=1.5, p_max=0.5, test=False):
         super().__init__()
+
+        # A list of shape (num_agents, time) of the schedule of when cars come to the EV
+        self.schedule = np.empty((num_ports, self.PERIODS))
+        self.ends = np.empty((num_ports, self.PERIODS))
+        self.PRICE_VEC = np.empty(self.PERIODS)
+        self.peak_load = p_grid_max  # Maximum allowed load
+        self.P_MAX = p_max  # maximum charging power of car in % of soc
 
         self.price_loader = EnergyPrices()
 
@@ -96,12 +86,12 @@ class SmartChargingEnv(ParallelEnv):
 
         # Get a price from the dataloader
         start_price = self.rng.integers(0, len(self.price_loader) - self.PERIODS)
-        self.PRICE_VEC = self.price_loader[start_price:start_price + self.PERIODS]
+        self.PRICE_VEC = self.price_loader[start_price:start_price + self.PERIODS] if options is None else options["prices"]
         # print(self.PRICE_VEC)
 
         # Set random arrival and departure times to train the agent on
-        arrivals = self.rng.integers(self.PERIODS, size=self.PERIODS)
-        departures = self.rng.integers(arrivals, self.PERIODS + 1, size=self.PERIODS)
+        arrivals = self.rng.integers(self.PERIODS, size=self.PERIODS) if options is None else options["t_arr"]
+        departures = self.rng.integers(arrivals, self.PERIODS + 1, size=self.PERIODS) if options is None else options["t_dep"]
 
         # Train the agent on days when cars don't leave
         # arrivals = np.zeros(self.num_agents, dtype=np.intp)
@@ -114,7 +104,7 @@ class SmartChargingEnv(ParallelEnv):
         for idx, agent in enumerate(self.agents):
             if self.schedule[idx, self._elapsed_steps] > 0:
                 self.state.update({agent: np.array([
-                    0.2,
+                    self.rng.random() / 2 if options is None else options["soc_int"],
                     self.schedule[idx, self._elapsed_steps],
                     electricity_price,
                     1
@@ -129,8 +119,10 @@ class SmartChargingEnv(ParallelEnv):
 
         return self.state, {agent: {} for agent in self.agents}
 
+
     def get_index(self, agent):
         return int(agent)
+
 
     # TODO: add cost for total action greater than max_allowed action
     def step(self, actions):
