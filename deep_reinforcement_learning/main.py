@@ -26,7 +26,9 @@ if __name__ == '__main__':
     params['p_max'] = P_c_max[0] / E_cap[0]
     params['p_max_grid'] = P_max_grid[0] / E_cap[0]
 
+    # Settings for plotting and checkpoints
     params['checkpoint_name'] = f"instance_N_{N}_id_{id}"
+    params['e_cap'] = E_cap[0]
 
     env = SmartChargingEnv(num_ports=num_agents, action_space_size=params.get('n_actions'), p_max=params.get('p_max'),
                            p_grid_max=params.get('p_max_grid'), leaving_soc=params.get('soc_req'), )
@@ -41,8 +43,9 @@ if __name__ == '__main__':
                                th.nn.Linear(128, n_actions + 1)) for _ in range(num_agents)]
     experiment = ActorCriticExperiment(params, models, env)
 
-    # experiment.load_checkpoint(90)
-    # experiment.test_instance(t_arr, t_dep, soc_int[0], prices)
+    experiment.load_checkpoint(230)
+    experiment.test_instance(t_arr, t_dep, soc_int[0], prices)
+    exit()
 
     # Re-executing this code-block picks up the experiment where you left off
     try:

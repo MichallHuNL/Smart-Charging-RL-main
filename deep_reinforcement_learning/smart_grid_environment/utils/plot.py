@@ -7,7 +7,6 @@ charging_reward_constant = 4
 non_full_ev_cost_constant = 15
 over_peak_load_constant = 5
 peak_load = 1.5
-p_max = 0.5
 
 
 def calculate_reward(soc, action, price, exists, end):
@@ -44,7 +43,7 @@ def get_action_if_ev(actions, exists):
     action_if_ev[exists != 1] = 0
     return action_if_ev
 
-def get_socs_when_leave(socs, actions, ends):
+def get_socs_when_leave(socs, actions, ends, p_max):
     socs_plus_leaves = socs
     for i in range(socs.shape[0]):
         for j in range(socs.shape[1]):
@@ -79,16 +78,15 @@ def find_non_zero_intervals(row):
 # remaining_times - numpy array of size (steps, num_agents)
 # ends - numpy array of size (steps, num_agents)
 # schedule - numpy array of size (steps, num_agents)
-def make_plots(socs, pre_filter_actions, prices, exists, remaining_times, ends, schedule, rewards):
+def make_plots(socs, pre_filter_actions, prices, exists, remaining_times, ends, schedule, rewards, p_max=0.2, E_cap=74):
     # actions_clipped = actions * p_max
     # actions_clipped = np.clip(actions_clipped, -socs, 1 - socs)
     # actions_clipped = np.clip(actions_clipped, -1, 0.5)
     actions = get_action_if_ev(pre_filter_actions, exists)
     # rewards, total_rewards = get_rewards(socs, actions, prices, exists, remaining_times, ends)
-    socs = get_socs_when_leave(socs, actions, ends)
+    socs = get_socs_when_leave(socs, actions, ends, p_max)
 
-    # TODO: fix this function, action is in (% of SOC)/P_MAX, while prices is in euro/kWh
-    total_cost = (np.transpose(prices) @ actions).sum()
+    total_cost = (np.transpose(prices) @ ((actions * p_max) * E_cap)).sum()
     print("total_cost", total_cost)
     # print(action_if_ev)
 

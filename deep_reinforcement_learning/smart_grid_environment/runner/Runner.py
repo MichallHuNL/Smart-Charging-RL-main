@@ -29,7 +29,8 @@ class Runner:
         self.state = None
         self.time = 0
         self._next_step()
-        self.plot()
+        self.e_cap = params.get('e_cap', 50)
+        self.p_max = params.get('p_max', 0.8)
 
     def close(self):
         self.env.close()
@@ -177,6 +178,6 @@ class Runner:
         exists = observations[:, 3::4]
 
         make_plots(socs, actions, prices, exists, remaining_times, np.transpose(np.array(self.env.ends)),
-                   np.array(self.env.schedule), rewards)
+                   np.array(self.env.schedule), rewards, self.p_max, self.e_cap)
         self._next_step()
         # print("-------------------------      DONE       -------------------------")
