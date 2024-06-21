@@ -50,17 +50,17 @@ class Experiment:
             fig.set_size_inches(16, 4)
             plt.clf()
             # Plot the losses in the left subplot
-            pl.subplot(1, 3, 1)
+            pl.subplot(1, 2, 1)
             pl.plot(env_steps, returns, colors[0])
             pl.xlabel('environment steps' if self.plot_train_samples else 'episodes')
             pl.ylabel('episode return')
-            # Plot the episode lengths in the middle subplot
-            ax = pl.subplot(1, 3, 2)
-            ax.plot(env_steps, lengths, colors[0])
-            ax.set_xlabel('environment steps' if self.plot_train_samples else 'episodes')
-            ax.set_ylabel('episode length')
+            # # Plot the episode lengths in the middle subplot
+            # ax = pl.subplot(1, 3, 2)
+            # ax.plot(env_steps, lengths, colors[0])
+            # ax.set_xlabel('environment steps' if self.plot_train_samples else 'episodes')
+            # ax.set_ylabel('episode length')
             # Plot the losses in the right subplot
-            ax = pl.subplot(1, 3, 3)
+            ax = pl.subplot(1, 2, 2)
             ax.plot(x_losses, losses, colors[0])
             ax.set_xlabel('environment steps' if self.plot_train_samples else 'episodes')
             ax.set_ylabel('loss')
