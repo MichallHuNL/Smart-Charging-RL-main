@@ -21,7 +21,7 @@ if __name__ == '__main__':
     params['max_steps'] = int(2E6)
     params['double_q'] = True
 
-    # When these params change, retrain agents
+    # When these params change, retrain agents. Also retrain when num_agents changes.
     params['soc_req'] = soc_req[0]
     params['p_max'] = P_c_max[0] / E_cap[0]
     params['p_max_grid'] = P_max_grid[0] / E_cap[0]
