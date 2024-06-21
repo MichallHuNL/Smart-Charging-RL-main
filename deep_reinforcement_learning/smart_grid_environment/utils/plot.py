@@ -86,8 +86,10 @@ def make_plots(socs, pre_filter_actions, prices, exists, remaining_times, ends, 
     actions = get_action_if_ev(pre_filter_actions, exists)
     # rewards, total_rewards = get_rewards(socs, actions, prices, exists, remaining_times, ends)
     socs = get_socs_when_leave(socs, actions, ends)
-    # print("rewards", rewards)
-    # print("total_rewards", total_rewards)
+
+    # TODO: fix this function, action is in (% of SOC)/P_MAX, while prices is in euro/kWh
+    total_cost = (np.transpose(prices) @ actions).sum()
+    print("total_cost", total_cost)
     # print(action_if_ev)
 
     # Get intervals for each row
