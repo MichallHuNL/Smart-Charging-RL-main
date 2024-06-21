@@ -152,10 +152,14 @@ class Runner:
         # remaining_times[0, :] = [state[1] for state in states]
 
         # print("-------------------------RUNNING FOR PLOTS -------------------------")
+        avg_action_time = 0
 
         start = time.perf_counter()
         for step in range(n_steps):
+            start2 = time.perf_counter()
             action = self.controller.controller.choose(self.state)
+            middle = time.perf_counter()
+            avg_action_time += (middle - start2) / n_steps
             reward, obs, terminal, done = self._make_step(self._actions_to_dict(action))
 
             actions[step] = (action / (self.env.n_actions // 2)) - 1.0
@@ -164,7 +168,8 @@ class Runner:
                 rewards[step + 1] = np.fromiter(reward.values(), dtype=float)
             self._next_step(done=False, next_state=obs)
         end = time.perf_counter()
-        print("Elapsed time", end - start, "seconds", flush=True)
+
+        print("Deciding action took on average", avg_action_time, "seconds")
 
         socs = observations[:, 0::4]
         remaining_times = observations[:, 1::4]
