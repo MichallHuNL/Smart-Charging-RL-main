@@ -90,8 +90,8 @@ class SmartChargingEnv(ParallelEnv):
         # print(self.PRICE_VEC)
 
         # Set random arrival and departure times to train the agent on
-        arrivals = self.rng.integers(self.PERIODS, size=self.PERIODS) if options is None else options["t_arr"]
-        departures = self.rng.integers(arrivals, self.PERIODS + 1, size=self.PERIODS) if options is None else options["t_dep"]
+        arrivals = self.rng.integers(self.PERIODS, size=self.num_agents) if options is None else options["t_arr"]
+        departures = self.rng.integers(arrivals, self.PERIODS + 1, size=self.num_agents) if options is None else options["t_dep"]
 
         # Train the agent on days when cars don't leave
         # arrivals = np.zeros(self.num_agents, dtype=np.intp)
