@@ -2,22 +2,28 @@ import torch
 import os
 
 
-def save_checkpoint(epoch, models, optimizers, losses=None):
+def save_checkpoint(epoch, models, optimizers, env_steps, losses, returns, lengths, checkpoint_name):
     os.makedirs("checkpoint", exist_ok=True)
     torch.save({
         'epoch': epoch,
         'models_state_dict': [model.state_dict() for model in models],
         'optimizers_state_dict': [optimizer.state_dict() for optimizer in optimizers],
+        'env_steps': env_steps,
         'losses': losses,
-    }, f'checkpoint/epoch_{epoch}.pth')
+        'returns': returns,
+        'lengths': lengths
+    }, f'checkpoint/{checkpoint_name}_epoch_{epoch}.pth')
     print(f'Checkpoint {epoch} saved', flush=True)
 
 
-def load_checkpoint(epoch, models, optimizers):
-    checkpoint = torch.load(f'checkpoint/epoch_{epoch}.pth')
+def load_checkpoint(epoch, models, optimizers, checkpoint_name):
+    checkpoint = torch.load(f'checkpoint/{checkpoint_name}_epoch_{epoch}.pth')
     [model.load_state_dict(checkpoint['models_state_dict'][idx]) for idx, model in enumerate(models)]
     [optimizer.load_state_dict(checkpoint['optimizers_state_dict'][idx]) for idx, optimizer in enumerate(optimizers)]
     epoch = checkpoint['epoch']
+    env_steps = checkpoint['env_steps']
     losses = checkpoint['losses']
+    returns = checkpoint['returns']
+    lengths = checkpoint['lengths']
     print(f'Checkpoint {epoch} loaded', flush=True)
-    return losses
+    return env_steps, losses, returns, lengths

@@ -33,6 +33,7 @@ class ActorCriticExperiment(Experiment):
             self.learner = COMALearner(models, critic, params)
         elif self.method == 'IQL':
             self.learners = [DoubleQLearner(model, idx, params) if learner is None else learner for (idx, model) in enumerate(models)]
+        self.checkpoint_name = params.get('checkpoint_name', "")
 
     def _learn_from_episode(self, episode):
         """ This function uses the episode to train.
@@ -110,10 +111,10 @@ class ActorCriticExperiment(Experiment):
         instance = {'t_arr': t_arr, 't_dep': t_dep, 'soc_int': soc_int, 'prices': prices}
         self.runner.plot(options=instance)
 
-    def save_checkpoint(self, epoch, losses=None):
+    def save_checkpoint(self, epoch):
         models, optimizers = list(zip(*[(learner.model, learner.optimizer) for learner in self.learners]))
-        save_checkpoint(epoch, models, optimizers, losses)
+        save_checkpoint(epoch, models, optimizers, self.env_steps, self.episode_losses, self.episode_returns, self.episode_lengths, self.checkpoint_name)
 
     def load_checkpoint(self, epoch):
         models, optimizers = list(zip(*[(learner.model, learner.optimizer) for learner in self.learners]))
-        load_checkpoint(epoch, models, optimizers)
+        self.env_steps, self.episode_losses, self.episode_returns, self.episode_lengths = load_checkpoint(epoch, models, optimizers, self.checkpoint_name)
