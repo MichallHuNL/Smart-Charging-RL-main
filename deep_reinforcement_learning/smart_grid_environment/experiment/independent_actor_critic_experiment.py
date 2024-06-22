@@ -111,10 +111,16 @@ class ActorCriticExperiment(Experiment):
         instance = {'t_arr': t_arr, 't_dep': t_dep, 'soc_int': soc_int, 'prices': prices}
         self.runner.plot(options=instance)
 
+    def _learner_models(self):
+        if self.method == "IQL":
+            return list(zip(*[(learner.model, learner.optimizer) for learner in self.learners]))
+        if self.method == "COMA":
+            return self.learner.models, self.learner.optimizers
+
     def save_checkpoint(self, epoch):
-        models, optimizers = list(zip(*[(learner.model, learner.optimizer) for learner in self.learners]))
+        models, optimizers = self._learner_models()
         save_checkpoint(epoch, models, optimizers, self.env_steps, self.episode_losses, self.episode_returns, self.episode_lengths, self.checkpoint_name)
 
     def load_checkpoint(self, epoch=None):
-        models, optimizers = list(zip(*[(learner.model, learner.optimizer) for learner in self.learners]))
+        models, optimizers = self._learner_models()
         self.env_steps, self.episode_losses, self.episode_returns, self.episode_lengths = load_checkpoint(epoch, models, optimizers, self.checkpoint_name)
