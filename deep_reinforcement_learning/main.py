@@ -6,13 +6,17 @@ from smart_grid_environment.utils.default_params import default_params
 from smart_grid_environment.experiment.independent_actor_critic_experiment import ActorCriticExperiment
 from tests.instance_loader import load_instance
 
+
+
 if __name__ == '__main__':
     filename = "plots/plot.png"
     os.makedirs(os.path.dirname(filename), exist_ok=True)
-    N, id = 5, 1
+    N = 25
     num_agents, t_arr, t_dep, soc_req, soc_int, P_c_max, P_d_max, P_max_grid, E_cap, prices = (
-        load_instance(N, id=id, filename='tests/test_instances.json'))
+        load_instance(N, filename='tests/test_instances.json'))
     assert P_c_max == P_d_max
+
+
 
     # Executing this code-block defines a new experiment
     params = default_params()
@@ -27,7 +31,7 @@ if __name__ == '__main__':
     params['p_max_grid'] = P_max_grid[0] / E_cap[0]
 
     # Settings for plotting and checkpoints
-    params['checkpoint_name'] = f"instance_N_{N}_id_{id}"
+    params['checkpoint_name'] = f"instance_{N}"
     params['e_cap'] = E_cap[0]
 
     env = SmartChargingEnv(num_ports=num_agents, action_space_size=params.get('n_actions'), p_max=params.get('p_max'),
@@ -43,9 +47,17 @@ if __name__ == '__main__':
                                th.nn.Linear(128, n_actions + 1)) for _ in range(num_agents)]
     experiment = ActorCriticExperiment(params, models, env)
 
-    experiment.load_checkpoint(230)
-    experiment.test_instance(t_arr, t_dep, soc_int[0], prices)
+    def test_id(id):
+        _, t_arr, t_dep, _, soc_int, _, _, _, _, prices = (
+            load_instance(N, id=id, filename='tests/test_instances.json'))
+        experiment.load_checkpoint()
+        experiment.test_instance(t_arr, t_dep, soc_int[0], prices)
+
+    test_id(1)
+    test_id(2)
+    test_id(3)
     exit()
+    # experiment.load_checkpoint(100)
 
     # Re-executing this code-block picks up the experiment where you left off
     try:
