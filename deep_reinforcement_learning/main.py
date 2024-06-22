@@ -1,6 +1,7 @@
 import torch as th
 import os
 
+from deep_reinforcement_learning.smart_grid_environment.policy.coma import CentralizedCritic
 from smart_grid_environment.env.smart_grid_environment import SmartChargingEnv
 from smart_grid_environment.utils.default_params import default_params
 from smart_grid_environment.experiment.independent_actor_critic_experiment import ActorCriticExperiment
@@ -11,7 +12,7 @@ from tests.instance_loader import load_instance
 if __name__ == '__main__':
     filename = "plots/plot.png"
     os.makedirs(os.path.dirname(filename), exist_ok=True)
-    N = 25
+    N = 5
     num_agents, t_arr, t_dep, soc_req, soc_int, P_c_max, P_d_max, P_max_grid, E_cap, prices = (
         load_instance(N, filename='tests/test_instances.json'))
     assert P_c_max == P_d_max
@@ -23,7 +24,7 @@ if __name__ == '__main__':
     params['n_actions'] = 10
     params['n_agents'] = num_agents
     params['max_steps'] = int(2E6)
-    params['double_q'] = True
+    params['method'] = 'COMA'
 
     # When these params change, retrain agents. Also retrain when num_agents changes.
     params['soc_req'] = soc_req[0]
@@ -36,16 +37,21 @@ if __name__ == '__main__':
 
     env = SmartChargingEnv(num_ports=num_agents, action_space_size=params.get('n_actions'), p_max=params.get('p_max'),
                            p_grid_max=params.get('p_max_grid'), leaving_soc=params.get('soc_req'), )
-    n_actions, state_dim = params.get('n_actions', 10), env.observation_space(env.agents[0]).shape[0]
+
+    n_actions, state_dim = env.n_actions, env.observation_space(env.agents[0]).shape[0]
+
+    if params.get('method') == 'IQL':
+        state_dim *= num_agents
     # The model has n_action policy heads and one value head
 
-    # Full observability of the agents
-    input_dim = num_agents * state_dim
-    models = [th.nn.Sequential(th.nn.Linear(input_dim , 128), th.nn.ReLU(),
+    models = [th.nn.Sequential(th.nn.Linear(state_dim , 128), th.nn.ReLU(),
                                th.nn.Linear(128, 512), th.nn.ReLU(),
                                th.nn.Linear(512, 128), th.nn.ReLU(),
                                th.nn.Linear(128, n_actions + 1)) for _ in range(num_agents)]
-    experiment = ActorCriticExperiment(params, models, env)
+
+    critic = CentralizedCritic(state_dim, n_actions, num_agents) if params.get('method') == 'COMA' else None
+
+    experiment = ActorCriticExperiment(params, models, env, critic)
 
     def test_id(id):
         _, t_arr, t_dep, _, soc_int, _, _, _, _, prices = (
@@ -53,10 +59,10 @@ if __name__ == '__main__':
         experiment.load_checkpoint()
         experiment.test_instance(t_arr, t_dep, soc_int[0], prices)
 
-    test_id(1)
-    test_id(2)
-    test_id(3)
-    exit()
+    # test_id(1)
+    # test_id(2)
+    # test_id(3)
+    # exit()
     # experiment.load_checkpoint(100)
 
     # Re-executing this code-block picks up the experiment where you left off
