@@ -79,14 +79,15 @@ def find_non_zero_intervals(row):
 # ends - numpy array of size (steps, num_agents)
 # schedule - numpy array of size (steps, num_agents)
 def make_plots(socs, pre_filter_actions, prices, exists, remaining_times, ends, schedule, rewards, p_max=0.2, E_cap=74):
-    # actions_clipped = actions * p_max
-    # actions_clipped = np.clip(actions_clipped, -socs, 1 - socs)
-    # actions_clipped = np.clip(actions_clipped, -1, 0.5)
     actions = get_action_if_ev(pre_filter_actions, exists)
     # rewards, total_rewards = get_rewards(socs, actions, prices, exists, remaining_times, ends)
     socs = get_socs_when_leave(socs, actions, ends, p_max)
 
-    total_cost = (np.transpose(prices) @ ((actions * p_max) * E_cap)).sum()
+    actions_clipped = actions * p_max
+    actions_clipped = np.clip(actions_clipped, -socs, 1 - socs)
+    actions_clipped = np.clip(actions_clipped, -1, 0.5)
+
+    total_cost = (np.transpose(prices) @ ((actions_clipped * p_max) * E_cap)).sum()
     print("total_cost", total_cost)
     # print(action_if_ev)
 
