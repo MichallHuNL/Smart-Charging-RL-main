@@ -135,9 +135,6 @@ class SingleSmartChargingEnv(gymnasium.Env):
         departures = self.rng.integers(arrivals, self.PERIODS + 1, size=self.num_ports) if options is None else options["t_dep"]
 
 
-        if options is not None:
-            a = 2
-
         self.schedule, self.ends = calculate_schedule(self.schedule.shape, arrivals, departures)
 
         # print("schedule: ", self.schedule, flush=True)

@@ -7,6 +7,10 @@ from stable_baselines3 import PPO
 from matplotlib import pyplot as plt
 from deep_reinforcement_learning.smart_grid_environment.utils.plot import make_plots, get_actions_clipped
 from deep_reinforcement_learning.smart_grid_environment.utils.schedule import calculate_schedule
+import os
+from tests.instance_loader import load_instance
+from deep_reinforcement_learning.smart_grid_environment.data.prices import EnergyPrices
+import time
 
 
 
@@ -29,41 +33,61 @@ class IQLSmartChargingEnv(gymnasium.Env):
     metadata = {"render.modes": ["human"], "name": "neighborhood_charging_env"}
 
     # Define constants for clearer code
-    ETA = float(0.9)  # charging efficiency
-    P_MAX = 0.5  # maximum charging power of car
-    DELTA_T = float(1)  # 1 hour
-    B_MAX = float(40)  # in kWh, maximum battery capacity
+    # ETA = float(0.9)  # charging efficiency
+    # P_MAX = 0.5  # maximum charging power of car
+    # DELTA_T = float(1)  # 1 hour
+    # B_MAX = float(40)  # in kWh, maximum battery capacity
+    # power_cost_constant = 1  # Constant for linear multiplication for cost of power
+    # iql_peak_load = 0.8
+    # charging_reward_constant = 5  # Constant for linear multiplication for charging reward
+    # non_full_ev_cost_constant = 20  # Cost for EV leaving without full charge
+    # over_peak_load_constant = 5  # Cost for going over peak load that is multiplied by load
+    # peak_load = 0.9  # Maximum allowed load
+    # rng = np.random.default_rng(seed=42)  # random number generator for price vector
+    # PRICE_VEC = np.array([62.04, 61.42, 58.14, 57.83, 58.30, 62.49, 71.58, 79.36, 86.02, 78.04, 66.51, 64.53, 47.55, 50.00,
+    #              63.20, 71.17, 78.28, 89.40, 93.73, 87.19, 77.49, 71.62, 70.06, 66.39]) / 10
+    # # schedule = np.array(
+    # #     [[0., 5., 4., 3., 2., 1., 0., 3., 2., 1., 0., 3., 2., 1., 0., 3., 2., 1., 0., 0., 4., 3., 2., 1.],
+    # #      [2., 1., 0., 0., 0., 1., 0., 0., 0., 0., 6., 5., 4., 3., 2., 1., 0., 0., 3., 2., 1., 0., 1., 0.],
+    # #      [7., 6., 5., 4., 3., 2., 1., 0., 0., 4., 3., 2., 1., 0., 0., 0., 1., 0., 0., 0., 2., 1., 0., 0.],
+    # #      [2., 1., 0., 0., 0., 0., 0., 0., 5., 4., 3., 2., 1., 0., 0., 0., 0., 2., 1., 0., 0., 7., 6., 5.]])
+    # # ends = np.array(
+    # #     [[0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 0.],
+    # #      [0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 1.],
+    # #      [0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0.],
+    # #      [0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0.]])
+    #
+    # PERIODS = 24  # 24 hours
     power_cost_constant = 1  # Constant for linear multiplication for cost of power
-    iql_peak_load = 0.8
-    charging_reward_constant = 5  # Constant for linear multiplication for charging reward
+    charging_reward_constant = 0.1  # Constant for linear multiplication for charging reward
     non_full_ev_cost_constant = 20  # Cost for EV leaving without full charge
     over_peak_load_constant = 5  # Cost for going over peak load that is multiplied by load
-    peak_load = 0.9  # Maximum allowed load
-    rng = np.random.default_rng(seed=42)  # random number generator for price vector
-    PRICE_VEC = np.array([62.04, 61.42, 58.14, 57.83, 58.30, 62.49, 71.58, 79.36, 86.02, 78.04, 66.51, 64.53, 47.55, 50.00,
-                 63.20, 71.17, 78.28, 89.40, 93.73, 87.19, 77.49, 71.62, 70.06, 66.39]) / 10
-    # schedule = np.array(
-    #     [[0., 5., 4., 3., 2., 1., 0., 3., 2., 1., 0., 3., 2., 1., 0., 3., 2., 1., 0., 0., 4., 3., 2., 1.],
-    #      [2., 1., 0., 0., 0., 1., 0., 0., 0., 0., 6., 5., 4., 3., 2., 1., 0., 0., 3., 2., 1., 0., 1., 0.],
-    #      [7., 6., 5., 4., 3., 2., 1., 0., 0., 4., 3., 2., 1., 0., 0., 0., 1., 0., 0., 0., 2., 1., 0., 0.],
-    #      [2., 1., 0., 0., 0., 0., 0., 0., 5., 4., 3., 2., 1., 0., 0., 0., 0., 2., 1., 0., 0., 7., 6., 5.]])
-    # ends = np.array(
-    #     [[0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 0.],
-    #      [0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 1.],
-    #      [0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0.],
-    #      [0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0.]])
 
+    rng = np.random.default_rng(seed=42)  # random number generator for price vector
     PERIODS = 24  # 24 hours
 
-    def __init__(self, num_ports=4, leaving_soc = 0.8, max_soc=1, max_time=24, max_price=10, penalty_factor=0.1, beta=0.01, agent_nr = 0):
+    def __init__(self, num_ports=4, leaving_soc=0.8, max_soc=1, max_time=24, penalty_factor=0.1,
+        beta=0.01, action_space_size=10, p_grid_max=1.5, p_max=0.5, test=False, agent_nr = 0):
         super().__init__()
+
+
+        self.schedule = np.empty((num_ports, self.PERIODS))
+        self.ends = np.empty((num_ports, self.PERIODS))
+        self.PRICE_VEC = np.empty(self.PERIODS)
+
+        self.iql_peak_load = 0.8
+        self.over_peak_load_constant = 5  # Cost for going over peak load that is multiplied by load
+
+        self.peak_load = p_grid_max  # Maximum allowed load
+        self.P_MAX = p_max  # maximum charging power of car in % of soc
+        self.price_loader = EnergyPrices(file = '../../smart_grid_environment/data/prices.csv')
 
         self.agent_nr = agent_nr
 
         # Number of charging ports
         self.num_ports = num_ports
 
-        self.leaving_soc = 0.8
+        self.leaving_soc = leaving_soc - 0.01
 
         # Maximum SOC of an EV arriving
         self.max_soc = max_soc
@@ -72,7 +96,7 @@ class IQLSmartChargingEnv(gymnasium.Env):
         self.max_time = max_time
 
         # Maximum price on the grid (since otherwise cannot model it) / kWh
-        self.max_price = max_price
+        self.max_price = self.price_loader.max_price()
 
         # Penalty factor for the car
         self.penalty_factor = penalty_factor
@@ -80,32 +104,37 @@ class IQLSmartChargingEnv(gymnasium.Env):
         # Car battery decay rate (considering this but not too sure)
         self.beta = beta
 
+        self.n_actions = action_space_size
+
+
         # Define action and observation spaces for each agent
         self.action_space = Box(low=-1, high=1, dtype=np.float32)
 
-        low = []
         self.observation_space = Box(
-            low=np.array([0, -1, 0, 0]),
+            low=np.array([0, -1, -1, 0]),
             high=np.array([self.max_soc, 24, self.max_price, 1]),
             dtype=np.float32
         )
 
         self.state = {}
 
+        self.t = 0
+
     def reset(self, seed=None, options=None):
         if seed is not None:
             np.random.seed(seed)
 
         self.t = 0
+        if options is not None:
+            self.agent_nr = options["agent_nr"]
 
+        start_price = self.rng.integers(0, len(self.price_loader) - self.PERIODS)
+        self.PRICE_VEC = self.price_loader[start_price:start_price + self.PERIODS] if options is None else options["prices"]
 
-        # TODO: get price based on real data
-        self.PRICE_VEC = np.random.rand(*self.PRICE_VEC.shape) * self.max_price
+        arrivals = self.rng.integers(self.PERIODS, size=self.num_ports) if options is None else options["t_arr"]
+        departures = self.rng.integers(arrivals, self.PERIODS + 1, size=self.num_ports) if options is None else options["t_dep"]
 
-        arrivals = self.rng.integers(self.PERIODS, size=self.PERIODS)
-        departures = self.rng.integers(arrivals, self.PERIODS + 1, size=self.PERIODS)
-
-        self.schedule, self.ends = calculate_schedule((4, 24), arrivals, departures)
+        self.schedule, self.ends = calculate_schedule(self.schedule.shape, arrivals, departures)
 
         # print("schedule: ", self.schedule, flush=True)
 
@@ -113,7 +142,7 @@ class IQLSmartChargingEnv(gymnasium.Env):
         self.state = []
 
         if self.schedule[self.agent_nr, self.t] > 0.:
-            self.state =  [0.2, self.schedule[self.agent_nr, self.t], electricity_price, 1]
+            self.state =  [self.rng.random() / 2 if options is None else options["soc_int"][self.agent_nr], self.schedule[self.agent_nr, self.t], electricity_price, 1]
         else:
             self.state = [0, -1, electricity_price, 0]
 
@@ -149,7 +178,7 @@ class IQLSmartChargingEnv(gymnasium.Env):
 
             reward += action_clipped * self.charging_reward_constant
 
-            if soc < self.leaving_soc and self.t < len(self.PRICE_VEC) and self.ends[self.agent_nr, self.t] == 1:
+            if soc < self.leaving_soc and self.t < len(self.PRICE_VEC) and self.ends[self.agent_nr, self.t]:
                 reward -= self.non_full_ev_cost_constant  # Penalty for car leaving without full charge
 
             # Update remaining time
@@ -182,7 +211,7 @@ class IQLSmartChargingEnv(gymnasium.Env):
         self.state = [soc, remaining_time, price, has_ev]
 
         if action_clipped > self.iql_peak_load:
-            reward -= action_clipped * self.over_peak_load_constant
+            reward -= self.over_peak_load_constant * np.max(action_clipped, 0)
         return np.array(self.state, dtype="float32"), reward, done, False, infos
 
     def render(self):
@@ -208,8 +237,7 @@ class IQLSmartChargingEnv(gymnasium.Env):
 
 # Example of creating the environment and running a step
 
-def get_info():
-    num_agents = 4
+def get_info(env, N, id):
     n_steps = 24
 
     socs = np.zeros((n_steps, num_agents))
@@ -219,22 +247,38 @@ def get_info():
     remaining_times = np.zeros((n_steps, num_agents))
     schedule = np.zeros((num_agents, n_steps))
     ends = np.zeros((num_agents, n_steps))
-    for i in range(num_agents):
 
-        obs = envs[i].reset()[0]
+    rewards = np.zeros((n_steps, num_agents))
+
+    start_time = time.time()
+
+    for i in range(num_agents):
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        _, t_arr, t_dep, soc_req, soc_int, P_c_max, P_d_max, P_max_grid, E_cap, prices = (
+            load_instance(N, id=id, filename='../../tests/test_instances.json'))
+        assert P_c_max == P_d_max
+        #
+        options = {}
+        options["prices"] = prices
+        options["t_arr"] = t_arr
+        options["t_dep"] = t_dep
+        options["soc_int"] = soc_int
+        options["agent_nr"] = i
+
+        obs = env.reset(options=options)[0]
         socs[0, i] = obs[0]
         prices[0] = obs[2]
         exists[0, i] = obs[3]
         remaining_times[0, i] = obs[1]
-        schedule[i, :] = envs[i].schedule[i, :]
-        ends[i, :] = envs[i].ends[i, :]
+        schedule[i, :] = env.schedule[i, :]
+        ends[i, :] = env.ends[i, :]
 
 
         for step in range(n_steps):
-            action, _ = models[i].predict(obs)  # 1st step is based on reset()
+            action, _ = model.predict(obs)  # 1st step is based on reset()
             actions[step, i] = action
-            obs, reward, done, _, info = envs[i].step(action)
-            env = envs[i]
+            obs, reward, done, _, info = env.step(action)
+            rewards[step, i] = reward
 
             if step + 1 < n_steps:
                 socs[step + 1, i] = obs[0]
@@ -242,13 +286,13 @@ def get_info():
                 exists[step + 1, i] = obs[3]
                 remaining_times[step + 1, i] = obs[1]
 
-    actions_clipped = get_actions_clipped(actions, socs, exists, envs[i].P_MAX)
+    actions_clipped = get_actions_clipped(actions, socs, exists, env.P_MAX)
     # print('this1: ', schedule)
     # print('this2: ', np.transpose(np.array(envs[0].ends)))
     # print('this3: ', exists)
     ends = ends.T
-
-    make_plots(socs, actions_clipped, prices, exists, remaining_times, ends, schedule)
+    print(f"My {id} program took", time.time() - start_time, "to run")
+    make_plots(socs, actions_clipped, prices, exists, remaining_times, ends, schedule, rewards, p_max= p_max, E_cap = E_cap)
 
 
 
@@ -258,14 +302,28 @@ def get_info():
 
 if __name__ == '__main__':
 
-    import os
-    num_agents = 4
-    envs = [IQLSmartChargingEnv(agent_nr=i) for i in range(num_agents)]
-    state, _ = envs[0].reset(seed=0)
-    print('Check implementation: ', check_env(envs[0]))
+    filename = "plots/plot.png"
+
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    N, id = 100, 1
+    num_agents, t_arr, t_dep, soc_req, soc_int, P_c_max, P_d_max, P_max_grid, E_cap, prices = (
+        load_instance(N, id=id, filename='../../tests/test_instances.json'))
+    assert P_c_max == P_d_max
+
+
+    p_max = P_c_max[id] / E_cap[id]
+
+    p_grid_max = P_max_grid[id] / E_cap[id]
+
+    leaving_soc = soc_req[id]
+
+    env = IQLSmartChargingEnv(num_ports=num_agents, p_max=p_max, p_grid_max = p_grid_max, leaving_soc=leaving_soc )
+
+    state, _ = env.reset(seed=0)
+    print('Check implementation: ', check_env(env))
     print("Initial state:", state)
-    actions = envs[0].action_space.sample()
-    state, rewards, dones, truncations, infos = envs[0].step(actions)
+    actions = env.action_space.sample()
+    state, rewards, dones, truncations, infos = env.step(actions)
     print("State after step:", state)
     print("Rewards:", rewards)
     print("Dones:", dones)
@@ -290,19 +348,18 @@ if __name__ == '__main__':
     # Force Stable Baselines3 to use CPU
     os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
-    models = []
     # create model
-    for j in range(num_agents):
-        for i in range(n_runs):
-            print(f"training run trial, {i + 1}")
-            logname = f"Training_{i + 1}"
-            model = PPO("MlpPolicy", env=envs[j], verbose=0, tensorboard_log=logdir, seed= i * 2)
-            model.learn(total_timesteps=n_timesteps, progress_bar=True,
-                        tb_log_name=logname)  # Train for a fixed number of timesteps
-            models.append(model)
+    for i in range(n_runs):
+        print(f"training run trial, {i + 1}")
+        logname = f"Training_{i + 1}"
+        model = PPO("MlpPolicy", env=env, verbose=0, tensorboard_log=logdir, seed= i * 2)
+        model.learn(total_timesteps=n_timesteps, progress_bar=True,
+                    tb_log_name=logname)  # Train for a fixed number of timesteps
 
         # save model
         # model.save(f"{modeldir}/{logname}")
 
-    get_info()
+
+    for id in range(1, 4):
+        get_info(env=env, N=N, id=id)
     # bagas1()
