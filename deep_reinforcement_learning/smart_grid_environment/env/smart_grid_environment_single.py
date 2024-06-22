@@ -6,6 +6,10 @@ from stable_baselines3.common.env_checker import check_env
 from stable_baselines3 import PPO
 from deep_reinforcement_learning.smart_grid_environment.utils.plot import make_plots, get_actions_clipped
 from deep_reinforcement_learning.smart_grid_environment.utils.schedule import calculate_schedule
+import os
+from tests.instance_loader import load_instance
+from deep_reinforcement_learning.smart_grid_environment.data.prices import EnergyPrices
+
 
 
 def create_car_schedule(number_cars, time):
@@ -27,35 +31,53 @@ class SingleSmartChargingEnv(gymnasium.Env):
     metadata = {"render.modes": ["human"], "name": "neighborhood_charging_env"}
 
     # Define constants for clearer code
-    ETA = float(0.9)  # charging efficiency
-    P_MAX = 0.5  # maximum charging power of car
-    DELTA_T = float(1)  # 1 hour
-    B_MAX = float(40)  # in kWh, maximum battery capacity
-    power_cost_constant = 1 # Constant for linear multiplication for cost of power
-    charging_reward_constant = 4 # Constant for linear multiplication for charging reward
-    non_full_ev_cost_constant = 15 # Cost for EV leaving without full charge
-    over_peak_load_constant = 5 # Cost for going over peak load that is multiplied by load
-    peak_load = 0.9 # Maximum allowed load
+    # ETA = float(0.9)  # charging efficiency
+    # P_MAX = 0.5  # maximum charging power of car
+    # DELTA_T = float(1)  # 1 hour
+    # B_MAX = float(40)  # in kWh, maximum battery capacity
+    # power_cost_constant = 1 # Constant for linear multiplication for cost of power
+    # charging_reward_constant = 4 # Constant for linear multiplication for charging reward
+    # non_full_ev_cost_constant = 15 # Cost for EV leaving without full charge
+    # over_peak_load_constant = 5 # Cost for going over peak load that is multiplied by load
+    # peak_load = 0.9 # Maximum allowed load
+    # rng = np.random.default_rng(seed=42)  # random number generator for price vector
+    # PRICE_VEC = np.array([62.04, 61.42, 58.14, 57.83, 58.30, 62.49, 71.58, 79.36, 86.02, 78.04, 66.51, 64.53, 47.55, 50.00,
+    #              63.20, 71.17, 78.28, 89.40, 93.73, 87.19, 77.49, 71.62, 70.06, 66.39]) / 10
+    # schedule = np.array([[0., 5., 4., 3., 2., 1., 0., 3., 2., 1., 0., 3., 2., 1., 0., 3., 2., 1., 0., 0., 4., 3., 2., 1.],
+    #             [2., 1., 0., 0., 0., 1., 0., 0., 0., 0., 6., 5., 4., 3., 2., 1., 0., 0., 3., 2., 1., 0., 1., 0.],
+    #             [7., 6., 5., 4., 3., 2., 1., 0., 0., 4., 3., 2., 1., 0., 0., 0., 1., 0., 0., 0., 2., 1., 0., 0.],
+    #             [2., 1., 0., 0., 0., 0., 0., 0., 5., 4., 3., 2., 1., 0., 0., 0., 0., 2., 1., 0., 0., 7., 6., 5.]])  # A list of shape (num_agents, time) of the schedule of when cars come to the EV
+    # ends = np.array([[0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 0.],
+    #             [0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 1.],
+    #             [0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0.],
+    #             [0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0.]])
+    # PERIODS = 24  # 24 hours
+
+    power_cost_constant = 1  # Constant for linear multiplication for cost of power
+    charging_reward_constant = 0.1  # Constant for linear multiplication for charging reward
+    non_full_ev_cost_constant = 20  # Cost for EV leaving without full charge
+    over_peak_load_constant = 5  # Cost for going over peak load that is multiplied by load
+
     rng = np.random.default_rng(seed=42)  # random number generator for price vector
-    PRICE_VEC = np.array([62.04, 61.42, 58.14, 57.83, 58.30, 62.49, 71.58, 79.36, 86.02, 78.04, 66.51, 64.53, 47.55, 50.00,
-                 63.20, 71.17, 78.28, 89.40, 93.73, 87.19, 77.49, 71.62, 70.06, 66.39]) / 10
-    schedule = np.array([[0., 5., 4., 3., 2., 1., 0., 3., 2., 1., 0., 3., 2., 1., 0., 3., 2., 1., 0., 0., 4., 3., 2., 1.],
-                [2., 1., 0., 0., 0., 1., 0., 0., 0., 0., 6., 5., 4., 3., 2., 1., 0., 0., 3., 2., 1., 0., 1., 0.],
-                [7., 6., 5., 4., 3., 2., 1., 0., 0., 4., 3., 2., 1., 0., 0., 0., 1., 0., 0., 0., 2., 1., 0., 0.],
-                [2., 1., 0., 0., 0., 0., 0., 0., 5., 4., 3., 2., 1., 0., 0., 0., 0., 2., 1., 0., 0., 7., 6., 5.]])  # A list of shape (num_agents, time) of the schedule of when cars come to the EV
-    ends = np.array([[0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 0.],
-                [0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 1.],
-                [0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0.],
-                [0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0.]])
     PERIODS = 24  # 24 hours
 
-    def __init__(self, num_ports=4, leaving_soc = 0.8, max_soc=1, max_time=24, max_price=10, penalty_factor=0.1, beta=0.01):
+    def __init__(self, num_ports=4, leaving_soc=0.8, max_soc=1, max_time=24, penalty_factor=0.1,
+                 beta=0.01, action_space_size=10, p_grid_max=1.5, p_max=0.5, test=False):
         super().__init__()
+
+
+        self.schedule = np.empty((num_ports, self.PERIODS))
+        self.ends = np.empty((num_ports, self.PERIODS))
+        self.PRICE_VEC = np.empty(self.PERIODS)
+        self.peak_load = p_grid_max  # Maximum allowed load
+        self.P_MAX = p_max  # maximum charging power of car in % of soc
+        self.price_loader = EnergyPrices(file = '../../smart_grid_environment/data/prices.csv')
 
         # Number of charging ports
         self.num_ports = num_ports
 
-        self.leaving_soc = leaving_soc
+        # Minimum soc to not receive punishment
+        self.leaving_soc = leaving_soc - 0.01
 
         # Maximum SOC of an EV arriving
         self.max_soc = max_soc
@@ -64,7 +86,7 @@ class SingleSmartChargingEnv(gymnasium.Env):
         self.max_time = max_time
 
         # Maximum price on the grid (since otherwise cannot model it) / kWh
-        self.max_price = max_price
+        self.max_price = self.price_loader.max_price()
 
         # Penalty factor for the car
         self.penalty_factor = penalty_factor
@@ -72,8 +94,12 @@ class SingleSmartChargingEnv(gymnasium.Env):
         # Car battery decay rate (considering this but not too sure)
         self.beta = beta
 
+        self.n_actions = action_space_size
+
         # All the different ports defined according to the interface
         self.possible_agents = [i for i in range(self.num_ports)]
+        self.agents = self.possible_agents[:]
+
         self.agent_index = {agent: idx for idx, agent in enumerate(self.possible_agents)}
 
         self.agents = self.possible_agents[:]
@@ -81,12 +107,15 @@ class SingleSmartChargingEnv(gymnasium.Env):
         # Define action and observation spaces for each agent
         self.action_space = Box(low=-1, high=1, shape=(self.num_ports,), dtype=np.float32)
 
-        low = []
         self.observation_space = Box(
-            low=np.array([0, -1, 0, 0] * self.num_ports),
+            low=np.array([0, -1, -1, 0] * self.num_ports),
             high=np.array([self.max_soc, 24, self.max_price, 1] * self.num_ports),
             dtype=np.float32
         )
+
+        self.test = test
+
+        self.t = 0
 
         self.state = {}
 
@@ -97,8 +126,9 @@ class SingleSmartChargingEnv(gymnasium.Env):
         self.t = 0
         self.agents = self.possible_agents[:]
 
-        # TODO: get price based on real data
-        self.PRICE_VEC = np.random.rand(*self.PRICE_VEC.shape) * self.max_price
+        start_price = self.rng.integers(0, len(self.price_loader) - self.PERIODS)
+        self.PRICE_VEC = self.price_loader[start_price:start_price + self.PERIODS] if options is None else options["prices"]
+        # print(self.PRICE_VEC)
 
         arrivals = self.rng.integers(self.PERIODS, size=self.PERIODS)
         departures = self.rng.integers(arrivals, self.PERIODS + 1, size=self.PERIODS)
@@ -107,11 +137,13 @@ class SingleSmartChargingEnv(gymnasium.Env):
 
         # print("schedule: ", self.schedule, flush=True)
         electricity_price = self.PRICE_VEC[self.t]
+
+
         self.state = []
 
         for idx, agent in enumerate(self.agents):
             if self.schedule[idx, self.t] > 0.:
-                self.state = self.state +  [0.2, self.schedule[idx, self.t], electricity_price, 1]
+                self.state = self.state +  [self.rng.random() / 2 if options is None else options["soc_int"], self.schedule[idx, self.t], electricity_price, 1]
             else:
                 self.state = self.state + [0, -1, electricity_price, 0]
 
@@ -158,7 +190,7 @@ class SingleSmartChargingEnv(gymnasium.Env):
 
                 remaining_time -= 1
 
-                if soc < self.leaving_soc and self.t < len(self.PRICE_VEC) and self.ends[idx_agent, self.t] == 1:
+                if soc < self.leaving_soc and self.t < len(self.PRICE_VEC) and self.ends[idx_agent, self.t]:
                     total_reward -= self.non_full_ev_cost_constant  # Penalty for car leaving without full charge
 
                 total_action += action_clipped
@@ -196,8 +228,7 @@ class SingleSmartChargingEnv(gymnasium.Env):
 
             infos[agent] = {}
 
-        if total_action > self.peak_load:
-            total_reward -= total_action * self.over_peak_load_constant
+        total_reward -= self.over_peak_load_constant * np.max(total_action - self.peak_load, 0)
 
         all_done = all(dones.values())
         if all_done:
@@ -232,7 +263,6 @@ class SingleSmartChargingEnv(gymnasium.Env):
 # Example of creating the environment and running a step
 
 def get_info():
-    num_agents = 4
     n_steps = 24
 
     socs = np.zeros((n_steps, num_agents))
@@ -240,6 +270,7 @@ def get_info():
     prices = np.zeros((n_steps))
     exists = np.zeros((n_steps, num_agents))
     remaining_times = np.zeros((n_steps, num_agents))
+    rewards = np.zeros((n_steps, num_agents))
 
     obs = env.reset()[0]
     socs[0, :] = [obs[i * 4] for i in range(num_agents)]
@@ -247,10 +278,12 @@ def get_info():
     exists[0, :] = [obs[(i * 4) + 3] for i in range(num_agents)]
     remaining_times[0, :] = [obs[(i * 4) + 1] for i in range(num_agents)]
 
+
     for step in range(n_steps):
         action, _ = model.predict(obs)  # 1st step is based on reset()
         actions[step, :] = action
         obs, reward, done, _, info = env.step(action)
+        rewards[step, :] = reward
 
         if step + 1< n_steps:
             socs[step + 1, :] = [obs[i * 4] for i in range(num_agents)]
@@ -261,7 +294,7 @@ def get_info():
     actions_clipped = get_actions_clipped(actions, socs, exists, env.P_MAX)
 
 
-    make_plots(socs, actions_clipped, prices, exists, remaining_times, np.transpose(np.array(env.ends)), np.array(env.schedule))
+    make_plots(socs, actions_clipped, prices, exists, remaining_times, np.transpose(np.array(env.ends)), np.array(env.schedule), rewards)
 
 
 
@@ -271,9 +304,23 @@ def get_info():
 
 if __name__ == '__main__':
 
-    import os
+    filename = "plots/plot.png"
 
-    env = SingleSmartChargingEnv()
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    N, id = 5, 1
+    num_agents, t_arr, t_dep, soc_req, soc_int, P_c_max, P_d_max, P_max_grid, E_cap, prices = (
+        load_instance(N, id=id, filename='../../tests/test_instances.json'))
+    assert P_c_max == P_d_max
+
+
+    p_max = P_c_max[id] / E_cap[id]
+
+    p_grid_max = P_max_grid[id] / E_cap[id]
+
+    leaving_soc = soc_req[id]
+
+    env = SingleSmartChargingEnv(num_ports=num_agents, p_max=p_max, p_grid_max = p_grid_max, leaving_soc=leaving_soc )
+
     state, _ = env.reset(seed=0)
     print('Check implementation: ', check_env(env))
     print("Initial state:", state)
@@ -286,12 +333,12 @@ if __name__ == '__main__':
     print("Infos:", infos)
 
     # training
-    n_timesteps = 100000  # 1 mil
+    n_timesteps = 100  # 1 mil
     n_runs = 1  # 10 trial runs
 
     # instatiate path
-    modeldir = f"PPO_model_{2}"
-    logdir = f"PPO_log_{2}"
+    modeldir = f"PPO_model_{10}"
+    logdir = f"PPO_log_{10}"
 
     if not os.path.exists(modeldir):
         os.makedirs(modeldir)
@@ -313,7 +360,7 @@ if __name__ == '__main__':
                     tb_log_name=logname)  # Train for a fixed number of timesteps
 
         # save model
-        # model.save(f"{modeldir}/{logname}")
+        model.save(f"{modeldir}/{logname}")
 
     get_info()
     # bagas1()

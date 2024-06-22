@@ -7,8 +7,11 @@ import warnings
 warnings.filterwarnings("ignore")
 
 class EnergyPrices():
-    def __init__(self):
-        self.prices_frame = pd.read_csv('smart_grid_environment/data/prices.csv', decimal=',')
+    def __init__(self, file = None):
+        if file==None:
+            self.prices_frame = pd.read_csv('smart_grid_environment/data/prices.csv', decimal=',')
+        else:
+            self.prices_frame = pd.read_csv(file, decimal=',')
 
     def __len__(self):
         return len(self.prices_frame)

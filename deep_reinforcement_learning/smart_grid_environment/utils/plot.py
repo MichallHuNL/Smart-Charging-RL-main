@@ -43,6 +43,11 @@ def get_action_if_ev(actions, exists):
     action_if_ev[exists != 1] = 0
     return action_if_ev
 
+def get_actions_clipped(actions, socs, exists, p_max):
+    actions_clipped = np.clip(actions, -socs / p_max , (1 - socs) / p_max)
+    actions_clipped[exists != 1] = 0
+    return actions_clipped
+
 def get_socs_when_leave(socs, actions, ends, p_max):
     socs_plus_leaves = socs
     for i in range(socs.shape[0]):
