@@ -9,6 +9,7 @@ from deep_reinforcement_learning.smart_grid_environment.utils.schedule import ca
 import os
 from tests.instance_loader import load_instance
 from deep_reinforcement_learning.smart_grid_environment.data.prices import EnergyPrices
+import time
 
 
 
@@ -130,8 +131,12 @@ class SingleSmartChargingEnv(gymnasium.Env):
         self.PRICE_VEC = self.price_loader[start_price:start_price + self.PERIODS] if options is None else options["prices"]
         # print(self.PRICE_VEC)
 
-        arrivals = self.rng.integers(self.PERIODS, size=self.PERIODS)
-        departures = self.rng.integers(arrivals, self.PERIODS + 1, size=self.PERIODS)
+        arrivals = self.rng.integers(self.PERIODS, size=self.num_ports) if options is None else options["t_arr"]
+        departures = self.rng.integers(arrivals, self.PERIODS + 1, size=self.num_ports) if options is None else options["t_dep"]
+
+
+        if options is not None:
+            a = 2
 
         self.schedule, self.ends = calculate_schedule(self.schedule.shape, arrivals, departures)
 
@@ -143,7 +148,7 @@ class SingleSmartChargingEnv(gymnasium.Env):
 
         for idx, agent in enumerate(self.agents):
             if self.schedule[idx, self.t] > 0.:
-                self.state = self.state +  [self.rng.random() / 2 if options is None else options["soc_int"], self.schedule[idx, self.t], electricity_price, 1]
+                self.state = self.state +  [self.rng.random() / 2 if options is None else options["soc_int"][idx], self.schedule[idx, self.t], electricity_price, 1]
             else:
                 self.state = self.state + [0, -1, electricity_price, 0]
 
@@ -262,7 +267,17 @@ class SingleSmartChargingEnv(gymnasium.Env):
 
 # Example of creating the environment and running a step
 
-def get_info():
+def get_info(N, id):
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    num_agents, t_arr, t_dep, soc_req, soc_int, P_c_max, P_d_max, P_max_grid, E_cap, prices = (
+        load_instance(N, id=id, filename='../../tests/test_instances.json'))
+    assert P_c_max == P_d_max
+
+    options = {}
+    options["prices"] = prices
+    options["t_arr"] = t_arr
+    options["t_dep"] = t_dep
+    options["soc_int"] = soc_int
     n_steps = 24
 
     socs = np.zeros((n_steps, num_agents))
@@ -272,7 +287,12 @@ def get_info():
     remaining_times = np.zeros((n_steps, num_agents))
     rewards = np.zeros((n_steps, num_agents))
 
-    obs = env.reset()[0]
+    start_time = time.time()
+
+
+
+
+    obs = env.reset(options=options)[0]
     socs[0, :] = [obs[i * 4] for i in range(num_agents)]
     prices[0] = obs[2]
     exists[0, :] = [obs[(i * 4) + 3] for i in range(num_agents)]
@@ -293,8 +313,9 @@ def get_info():
 
     actions_clipped = get_actions_clipped(actions, socs, exists, env.P_MAX)
 
+    print(f"My {id} program took", time.time() - start_time, "to run")
 
-    make_plots(socs, actions_clipped, prices, exists, remaining_times, np.transpose(np.array(env.ends)), np.array(env.schedule), rewards)
+    make_plots(socs, actions_clipped, prices, exists, remaining_times, np.transpose(np.array(env.ends)), np.array(env.schedule), rewards, p_max= p_max, E_cap = E_cap)
 
 
 
@@ -307,11 +328,16 @@ if __name__ == '__main__':
     filename = "plots/plot.png"
 
     os.makedirs(os.path.dirname(filename), exist_ok=True)
-    N, id = 5, 1
+    N, id = 100, 1
     num_agents, t_arr, t_dep, soc_req, soc_int, P_c_max, P_d_max, P_max_grid, E_cap, prices = (
         load_instance(N, id=id, filename='../../tests/test_instances.json'))
     assert P_c_max == P_d_max
 
+    options = {}
+    options["prices"] = prices
+    options["t_arr"] = t_arr
+    options["t_dep"] = t_dep
+    options["soc_int"] = soc_int
 
     p_max = P_c_max[id] / E_cap[id]
 
@@ -333,7 +359,7 @@ if __name__ == '__main__':
     print("Infos:", infos)
 
     # training
-    n_timesteps = 100  # 1 mil
+    n_timesteps = 100000  # 1 mil
     n_runs = 1  # 10 trial runs
 
     # instatiate path
@@ -362,5 +388,8 @@ if __name__ == '__main__':
         # save model
         model.save(f"{modeldir}/{logname}")
 
-    get_info()
+
+
+    for id in range(1, 4):
+        get_info(N=N, id=id)
     # bagas1()

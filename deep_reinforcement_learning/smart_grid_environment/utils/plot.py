@@ -83,7 +83,7 @@ def find_non_zero_intervals(row):
 # remaining_times - numpy array of size (steps, num_agents)
 # ends - numpy array of size (steps, num_agents)
 # schedule - numpy array of size (steps, num_agents)
-def make_plots(socs, pre_filter_actions, prices, exists, remaining_times, ends, schedule, rewards, p_max=0.2, E_cap=74):
+def make_plots(socs, pre_filter_actions, prices, exists, remaining_times, ends, schedule, rewards, p_max=0.2, E_cap=50):
     # actions_clipped = actions * p_max
     # actions_clipped = np.clip(actions_clipped, -socs, 1 - socs)
     # actions_clipped = np.clip(actions_clipped, -1, 0.5)
