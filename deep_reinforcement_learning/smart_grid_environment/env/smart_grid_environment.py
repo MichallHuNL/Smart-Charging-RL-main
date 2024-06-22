@@ -184,7 +184,7 @@ class SmartChargingEnv(ParallelEnv):
                 truncations[agent] = False
                 if has_ev < 1:
                     if self.schedule[idx, self._elapsed_steps] > 0:
-                        soc, remaining_time, price, has_ev = 0.2, self.schedule[idx, self._elapsed_steps], \
+                        soc, remaining_time, price, has_ev = 0.5, self.schedule[idx, self._elapsed_steps], \
                             self.PRICE_VEC[
                                 self._elapsed_steps], 1
                     else:
