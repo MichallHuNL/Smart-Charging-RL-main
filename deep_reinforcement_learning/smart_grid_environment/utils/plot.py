@@ -135,12 +135,12 @@ def make_plots(socs, pre_filter_actions, prices, exists, remaining_times, ends, 
         plt.ylabel("Price", color='g')
         plt.yticks(color='g')
 
-        # plot reward in the same figure but on the right y-axis
-        plt.twinx()
-        plt.plot(np.arange(0, len(rewards), 1), rewards[:, i], label=f'reward-agent{i}', color='y')
-
-        plt.ylabel("Reward", color='y')
-        plt.yticks(color='y')
+        # # plot reward in the same figure but on the right y-axis
+        # plt.twinx()
+        # plt.plot(np.arange(0, len(rewards), 1), rewards[:, i], label=f'reward-agent{i}', color='y')
+        #
+        # plt.ylabel("Reward", color='y')
+        # plt.yticks(color='y')
 
         # display legend on top right
         plt.legend(loc="upper right")
