@@ -3,47 +3,55 @@ import gymnasium
 import torch as th
 import numbers
 import numpy as np
+import time
 from pettingzoo import ParallelEnv
 
 from ..utils.TransitionBatch import TransitionBatch
+from ..utils.plot import make_plots
 
 
 class Runner:
 
-    def __init__(self, env: ParallelEnv, controller, params={}):
+    def __init__(self, env: ParallelEnv, controller, params=None):
+        if params is None:
+            params = {}
         self.env = env
         self.n_agents = params.get('n_agents', 4)
-        self.agents = [f'port_{i}' for i in range(self.n_agents)]
+        self.agents = [i for i in range(self.n_agents)]
         self.cont_actions = isinstance(self.env.action_space(self.env.agents[0]), gymnasium.spaces.Box)
         self.controller = controller
         self.episode_length = params.get('max_episode_length', 300)
         self.gamma = params.get('gamma', 0.99)
 
         # Observations are equal to the state for the next state most likely
-        self.state_shape = self.env.observation_space(self.env.agents[0]).shape
-        self.sum_rewards = 0
+        self.state_shape = self.env.observation_space(self.env.agents[0]).shape[0]
+        self.sum_rewards = 0.0
         self.state = None
         self.time = 0
         self._next_step()
+        self.e_cap = params.get('e_cap', 50)
+        self.p_max = params.get('p_max', 0.8)
 
     def close(self):
         self.env.close()
 
     def transition_format(self):
-        """ Returns the format of transtions: a dictionary of (shape, dtype) entries for each key. """
-        return {'actions': ((1,), th.long),
-                'states': (self.state_shape, th.float32),
-                'next_states': (self.state_shape, th.float32),
+        """ Returns the format of transitions: a dictionary of (shape, dtype) entries for each key. """
+        return {'actions': ((1,), th.int64),
+                'states': ((self.n_agents * self.state_shape,), th.float32),
+                'next_states': ((self.n_agents * self.state_shape,), th.float32),
                 'rewards': ((1,),  th.float32),
                 'dones': ((1,), th.bool),
-                'returns': ((1,), th.float32)}
+                'returns': ((1,), th.float32),
+                'probabilities': ((self.env.n_actions,),  th.float32)
+                }
 
-    def _wrap_transition(self, s, a, r, ns, d):
+    def _wrap_transition(self, s, a, r, ns, d, p):
         """ Takes a transition and returns a corresponding dictionary. """
         trans = {}
         form = self.transition_format()
 
-        for key, val in [('states', s), ('actions', a), ('rewards', r), ('next_states', ns), ('dones', d)]:
+        for key, val in [('states', s), ('actions', a), ('rewards', r), ('next_states', ns), ('dones', d), ('probabilities', p)]:
             if not isinstance(val, th.Tensor):
                 if isinstance(val, numbers.Number) or isinstance(val, bool): val = [val]
                 val = th.tensor(val, dtype=form[key][1])
@@ -54,23 +62,24 @@ class Runner:
     def _actions_to_dict(self, actions):
         d = {}
         for agent, action in enumerate(actions):
-            d[f'port_{agent}'] = [action]
+            d[agent] = [action]
 
         return d
 
     def _make_step(self, a):
         """ Make an actual step inside the environment given to the runner and retrieve information """
-
-        ns, r, t, d, _ = self.env.step(a)
+        ns, r, d, t, _ = self.env.step(a)
         self.sum_rewards += th.sum(th.tensor(list(r.values())), dim=0)
+        ns = [x for k in ns.values() for x in k]
         return r, ns, t, d or t
 
-    def _next_step(self, done=True, next_state=None):
+    def _next_step(self, done=True, next_state=None, options=None):
         """Switch to the next step for the runner"""
         self.time = 0 if done else self.time + 1
         if done:
-            self.sum_rewards = 0
-            self.state, _ = self.env.reset()
+            self.sum_rewards = 0.0
+            state, _ = self.env.reset(options=options)
+            self.state = [x for k in state.values() for x in k]
         else:
             self.state = next_state
 
@@ -84,9 +93,10 @@ class Runner:
         for t in range(max_steps):
             action = self._actions_to_dict(self.controller.choose(self.state))
             r, ns, terminal, done = self._make_step(action)
+            probs = self.controller.probabilities(self.state)
             done = done["__all__"]
             for agent in self.agents:
-                tb[agent].add(self._wrap_transition(self.state[agent], action[agent], r[agent], ns[agent], terminal[agent]))
+                tb[agent].add(self._wrap_transition(self.state, action[agent], r[agent], ns, terminal[agent], probs[agent]))
                 # Terminate the Runner when there are no more runs allowed
                 if self.env._elapsed_steps >= self.episode_length: done = True
                 if done or t == (max_steps - 1):
@@ -117,3 +127,57 @@ class Runner:
 
     def run_episode(self, transition_buffer=None, trim=True, return_dict=None):
         return self.run(0, transition_buffer, trim, return_dict)
+
+    def plot(self, options=None):
+        num_agents = self.n_agents
+        n_steps = self.env.PERIODS
+
+        observations = np.empty((n_steps, num_agents * 4))
+
+        # socs = np.zeros((n_steps, num_agents))
+        actions = np.zeros((n_steps, num_agents))
+        # prices = np.zeros((n_steps))
+        # exists = np.zeros((n_steps, num_agents))
+        # remaining_times = np.zeros((n_steps, num_agents))
+        rewards = np.zeros((n_steps, num_agents))
+
+        self._next_step(options=options)
+
+        observations[0] = self.state
+
+        # obs = self.env.reset(options=options)[0]
+        # states = [self.state[i] for i in range(num_agents)]
+        # socs[0, :] = [state[0::4] for state in states]
+        # prices[0] = states[0][2]
+        # exists[0, :] = [state[3] for state in states]
+        # remaining_times[0, :] = [state[1] for state in states]
+
+        # print("-------------------------RUNNING FOR PLOTS -------------------------")
+        avg_action_time = 0
+
+        start = time.perf_counter()
+        for step in range(n_steps):
+            start2 = time.perf_counter()
+            action = self.controller.controller.choose(self.state)
+            middle = time.perf_counter()
+            avg_action_time += (middle - start2) / n_steps
+            reward, obs, terminal, done = self._make_step(self._actions_to_dict(action))
+
+            actions[step] = (action / (self.env.n_actions // 2)) - 1.0
+            if step + 1 < n_steps:
+                observations[step + 1] = obs
+                rewards[step + 1] = np.fromiter(reward.values(), dtype=float)
+            self._next_step(done=False, next_state=obs)
+        end = time.perf_counter()
+
+        print("Deciding action took on average", avg_action_time, "seconds")
+
+        socs = observations[:, 0::4]
+        remaining_times = observations[:, 1::4]
+        prices = observations[:, 2::4].mean(axis=-1)
+        exists = observations[:, 3::4]
+
+        make_plots(socs, actions, prices, exists, remaining_times, np.transpose(np.array(self.env.ends)),
+                   np.array(self.env.schedule), rewards, self.p_max, self.e_cap)
+        self._next_step()
+        # print("-------------------------      DONE       -------------------------")

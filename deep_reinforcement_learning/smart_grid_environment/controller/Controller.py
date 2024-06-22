@@ -51,12 +51,15 @@ class LogitsController(MultiController):
     def probabilities(self, observations, precomputed=None, **kwargs):
         self.lock.acquire()
         try:
-            probabilities = th.zeros((4, 2))
+            probabilities = th.zeros(self.num_agents, self.num_actions)
             for i in range(self.num_agents):
-                port = f'port_{i}'
-                mx = observations[port] if precomputed and precomputed[i] else self.models[i](
-                    self.sanitize_inputs(observations[port]))
+                mx = observations if precomputed and precomputed[i] else self.models[i](
+                    self.sanitize_inputs(observations))[:, :self.num_actions]
                 probabilities[i] = th.nn.functional.softmax(mx, dim=-1)
+                if th.isnan(probabilities).any():
+                    print('Nan Found for following probabilities: ', probabilities)
+                    print('Observations: ', observations)
+                    print('MX: ', mx)
         finally:
             self.lock.release()
         return probabilities

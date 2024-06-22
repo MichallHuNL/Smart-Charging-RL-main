@@ -1,1 +1,4 @@
 /deep_reinforcement_learning/plots/
+__pycache__
+.idea
+/deep_reinforcement_learning/checkpoint/
