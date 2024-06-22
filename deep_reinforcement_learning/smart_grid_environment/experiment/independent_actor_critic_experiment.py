@@ -115,6 +115,6 @@ class ActorCriticExperiment(Experiment):
         models, optimizers = list(zip(*[(learner.model, learner.optimizer) for learner in self.learners]))
         save_checkpoint(epoch, models, optimizers, self.env_steps, self.episode_losses, self.episode_returns, self.episode_lengths, self.checkpoint_name)
 
-    def load_checkpoint(self, epoch):
+    def load_checkpoint(self, epoch=None):
         models, optimizers = list(zip(*[(learner.model, learner.optimizer) for learner in self.learners]))
         self.env_steps, self.episode_losses, self.episode_returns, self.episode_lengths = load_checkpoint(epoch, models, optimizers, self.checkpoint_name)
