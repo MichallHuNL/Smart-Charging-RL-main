@@ -6,7 +6,8 @@ def calculate_schedule(schedule_shape, arrival_times, departure_times):
     ends = np.zeros(schedule_shape)
 
     # Sort based on arrival times
-    zipped = sorted(zip(arrival_times, departure_times), key=lambda x: x[0])
+    # zipped = sorted(zip(arrival_times, departure_times), key=lambda x: x[0])
+    zipped = [z for z in zip(arrival_times, departure_times)]
 
     for port_idx in range(schedule_shape[0]):
         arrival, departure = zipped[port_idx]
