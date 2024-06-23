@@ -43,13 +43,17 @@ def get_action_if_ev(actions, exists):
     action_if_ev[exists != 1] = 0
     return action_if_ev
 
-def get_socs_when_leave(socs, actions, ends, p_max):
+def get_socs_when_leave(socs, actions, ends, p_max, soc_req):
     socs_plus_leaves = socs
+    cars_left = 0.0
+    correct = 0.0
     for i in range(socs.shape[0]):
         for j in range(socs.shape[1]):
             if ends[i, j] == 1:
                 socs_plus_leaves[i, j] = np.clip(socs[i-1, j] + actions[i-1, j] * p_max, 0, 1)
-    return socs_plus_leaves
+                cars_left += 1
+                correct += socs_plus_leaves[i, j] > soc_req
+    return socs_plus_leaves, correct / cars_left
 
 
 def find_non_zero_intervals(row):
@@ -78,17 +82,16 @@ def find_non_zero_intervals(row):
 # remaining_times - numpy array of size (steps, num_agents)
 # ends - numpy array of size (steps, num_agents)
 # schedule - numpy array of size (steps, num_agents)
-def make_plots(socs, pre_filter_actions, prices, exists, remaining_times, ends, schedule, rewards, p_max=0.2, E_cap=74):
+def make_plots(socs, pre_filter_actions, prices, exists, remaining_times, ends, schedule, rewards, p_max=0.2, E_cap=74, soc_req=0.8):
     actions = get_action_if_ev(pre_filter_actions, exists)
     # rewards, total_rewards = get_rewards(socs, actions, prices, exists, remaining_times, ends)
-    socs = get_socs_when_leave(socs, actions, ends, p_max)
+    socs, corrects = get_socs_when_leave(socs, actions, ends, p_max, soc_req)
 
-    actions_clipped = actions * p_max
-    actions_clipped = np.clip(actions_clipped, -socs, 1 - socs)
-    actions_clipped = np.clip(actions_clipped, -1, 0.5)
+    actions = np.clip(actions, -socs / p_max, (1 - socs) / p_max)
 
-    total_cost = (np.transpose(prices) @ ((actions_clipped * p_max) * E_cap)).sum()
+    total_cost = (np.transpose(prices) @ ((actions * p_max) * E_cap)).sum()
     print("total_cost", total_cost)
+    print("% SoC correct", corrects)
     # print(action_if_ev)
 
     # Get intervals for each row
