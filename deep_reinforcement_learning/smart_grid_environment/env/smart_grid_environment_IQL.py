@@ -247,6 +247,8 @@ def get_info(env, N, id):
     remaining_times = np.zeros((n_steps, num_agents))
     schedule = np.zeros((num_agents, n_steps))
     ends = np.zeros((num_agents, n_steps))
+    soc_final = np.zeros(num_agents)
+
 
     rewards = np.zeros((n_steps, num_agents))
 
@@ -264,6 +266,7 @@ def get_info(env, N, id):
         options["t_dep"] = t_dep
         options["soc_int"] = soc_int
         options["agent_nr"] = i
+        zipped = sorted(zip(t_arr, t_dep, range(num_agents)), key=lambda x: x[0])
 
         obs = env.reset(options=options)[0]
         socs[0, i] = obs[0]
@@ -292,7 +295,11 @@ def get_info(env, N, id):
     # print('this3: ', exists)
     ends = ends.T
     print(f"My {id} program took", time.time() - start_time, "to run")
-    make_plots(socs, actions_clipped, prices, exists, remaining_times, ends, schedule, rewards, p_max= p_max, E_cap = E_cap)
+    for i in range(num_agents):
+        idx = zipped[i][2]
+        soc_final[i] = socs[t_dep[idx] - 1, i]
+
+    make_plots(socs, actions_clipped, prices, exists, remaining_times, ends, schedule, rewards, p_max= p_max, E_cap = E_cap, soc_req= soc_req, soc_final=soc_final, P_max_grid =P_max_grid)
 
 
 
@@ -305,7 +312,7 @@ if __name__ == '__main__':
     filename = "plots/plot.png"
 
     os.makedirs(os.path.dirname(filename), exist_ok=True)
-    N, id = 100, 1
+    N, id = 25, 1
     num_agents, t_arr, t_dep, soc_req, soc_int, P_c_max, P_d_max, P_max_grid, E_cap, prices = (
         load_instance(N, id=id, filename='../../tests/test_instances.json'))
     assert P_c_max == P_d_max

@@ -134,6 +134,9 @@ class SingleSmartChargingEnv(gymnasium.Env):
         arrivals = self.rng.integers(self.PERIODS, size=self.num_ports) if options is None else options["t_arr"]
         departures = self.rng.integers(arrivals, self.PERIODS + 1, size=self.num_ports) if options is None else options["t_dep"]
 
+        if(options is not None):
+            a = 2
+
 
         self.schedule, self.ends = calculate_schedule(self.schedule.shape, arrivals, departures)
 
@@ -270,6 +273,9 @@ def get_info(N, id):
         load_instance(N, id=id, filename='../../tests/test_instances.json'))
     assert P_c_max == P_d_max
 
+
+
+
     options = {}
     options["prices"] = prices
     options["t_arr"] = t_arr
@@ -277,12 +283,17 @@ def get_info(N, id):
     options["soc_int"] = soc_int
     n_steps = 24
 
+    zipped = sorted(zip(t_arr, t_dep, range(num_agents)), key=lambda x: x[0])
+
+
     socs = np.zeros((n_steps, num_agents))
     actions = np.zeros((n_steps, num_agents))
     prices = np.zeros((n_steps))
     exists = np.zeros((n_steps, num_agents))
     remaining_times = np.zeros((n_steps, num_agents))
     rewards = np.zeros((n_steps, num_agents))
+    soc_final = np.zeros(num_agents)
+
 
     start_time = time.time()
 
@@ -294,6 +305,7 @@ def get_info(N, id):
     prices[0] = obs[2]
     exists[0, :] = [obs[(i * 4) + 3] for i in range(num_agents)]
     remaining_times[0, :] = [obs[(i * 4) + 1] for i in range(num_agents)]
+
 
 
     for step in range(n_steps):
@@ -312,7 +324,11 @@ def get_info(N, id):
 
     print(f"My {id} program took", time.time() - start_time, "to run")
 
-    make_plots(socs, actions_clipped, prices, exists, remaining_times, np.transpose(np.array(env.ends)), np.array(env.schedule), rewards, p_max= p_max, E_cap = E_cap)
+    for i in range(num_agents):
+        idx = zipped[i][2]
+        soc_final[i] = socs[t_dep[idx] - 1, i]
+
+    make_plots(socs, actions_clipped, prices, exists, remaining_times, np.transpose(np.array(env.ends)), np.array(env.schedule), rewards, p_max= p_max, E_cap = E_cap, soc_req= soc_req, soc_final=soc_final, P_max_grid =P_max_grid)
 
 
 
@@ -325,7 +341,7 @@ if __name__ == '__main__':
     filename = "plots/plot.png"
 
     os.makedirs(os.path.dirname(filename), exist_ok=True)
-    N, id = 100, 1
+    N, id = 25, 1
     num_agents, t_arr, t_dep, soc_req, soc_int, P_c_max, P_d_max, P_max_grid, E_cap, prices = (
         load_instance(N, id=id, filename='../../tests/test_instances.json'))
     assert P_c_max == P_d_max

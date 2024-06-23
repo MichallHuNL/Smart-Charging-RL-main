@@ -83,11 +83,27 @@ def find_non_zero_intervals(row):
 # remaining_times - numpy array of size (steps, num_agents)
 # ends - numpy array of size (steps, num_agents)
 # schedule - numpy array of size (steps, num_agents)
-def make_plots(socs, pre_filter_actions, prices, exists, remaining_times, ends, schedule, rewards, p_max=0.2, E_cap=50):
+def make_plots(socs, pre_filter_actions, prices, exists, remaining_times, ends, schedule, rewards, p_max=0.2, E_cap=50, soc_req = 0.8, soc_final =None, P_max_grid =None):
     # actions_clipped = actions * p_max
     # actions_clipped = np.clip(actions_clipped, -socs, 1 - socs)
     # actions_clipped = np.clip(actions_clipped, -1, 0.5)
     actions = get_action_if_ev(pre_filter_actions, exists)
+
+    J = ends.shape[0]
+    actions_total = np.array(actions)
+    actions_total = np.sum(actions_total, axis = 1)
+
+    positive_actions = np.array(actions_total)
+    positive_actions[positive_actions < 0] = 0
+
+    negative_actions = np.array(actions_total)
+    negative_actions[negative_actions > 0] = 0
+
+    P_b_grid = positive_actions * p_max * E_cap[0]
+    P_s_grid = negative_actions * p_max * E_cap[0]
+
+
+    make_pres_plot(J, P_b_grid, P_s_grid, P_max_grid, prices)
     # rewards, total_rewards = get_rewards(socs, actions, prices, exists, remaining_times, ends)
     socs = get_socs_when_leave(socs, actions, ends, p_max)
 
@@ -100,9 +116,13 @@ def make_plots(socs, pre_filter_actions, prices, exists, remaining_times, ends, 
     # print("intervals", intervals)
 
 
-
+    count = 0
 
     for i in range(socs.shape[1]):
+        if soc_final[i] > soc_req[i]:
+            count += 1
+
+
         title = f'Action, state of charge and prices for agent {i}'
 
         # plt.subplot(2,2, i + 1)
@@ -156,6 +176,8 @@ def make_plots(socs, pre_filter_actions, prices, exists, remaining_times, ends, 
 
     title = 'Total rewards'
 
+
+    print(f"precentage of cars sufficitnelt charged {count / socs.shape[1]} ")
     plt.plot(np.arange(0, len(socs), 1), rewards.sum(axis=1), label="total_rewards")
 
     # set opacity
@@ -193,3 +215,31 @@ def make_plots(socs, pre_filter_actions, prices, exists, remaining_times, ends, 
     # plt.show()
     plt.savefig(f'plots/total_rewards.png')
     plt.close(fig1)
+
+
+def make_pres_plot(J, P_b_grid, P_s_grid, P_max_grid, prices):
+
+    # plot total charge power consumption as bar chart, plot the total discharge power consumption as negative bar chart, plot the maximum power as a line, plot predicted electricity price
+    plt.figure(figsize=(12, 5))
+    plt.bar(range(J), [P_b_grid[j] for j in range(J)], color='yellow', edgecolor='black', label='Charging Power')
+    plt.bar(range(J), [P_s_grid[j] for j in range(J)], color='cyan', edgecolor='black', label='Discharging Power')
+    plt.plot(P_max_grid, color='red', label='Maximum Power')
+
+    # Creating a second y-axis for alpha
+    ax1 = plt.gca()  # Get the current axes
+    ax2 = ax1.twinx()  # Create a second y-axis that shares the same x-axis
+
+    # Plot alpha on the second y-axis
+    ax2.plot(prices, color='orange', label='Price')
+
+    # Adding labels and title
+    ax1.set_title('Total Power Consumption')
+    ax1.set_xlabel('Time Step')
+    ax1.set_ylabel('Power Consumption (kW)')
+    ax2.set_ylabel('Predicted Electricity Price (€/kW)')
+
+    # Adding legends
+    ax1.legend(loc='upper left')
+    ax2.legend(loc='upper right')
+
+    plt.show()
