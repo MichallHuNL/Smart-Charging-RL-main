@@ -21,9 +21,6 @@ def save_checkpoint(epoch, models, optimizers, env_steps, losses, returns, lengt
 def load_checkpoint(epoch, models, optimizers, checkpoint_name):
     if epoch is None:
         files = os.listdir(f'checkpoint/{checkpoint_name}')
-
-        print(files)
-
         epoch = max([int(re.search(r"[0-9]+", file).group()) for file in files])
     checkpoint = torch.load(f'checkpoint/{checkpoint_name}/epoch_{epoch}.pth')
     [model.load_state_dict(checkpoint['models_state_dict'][idx]) for idx, model in enumerate(models)]
